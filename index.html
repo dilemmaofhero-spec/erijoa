@@ -1,0 +1,1381 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>エリザベス女王杯シミュレーター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: 左に淀のトラックと条件、右に結果ボード（集計・展開比較・各馬/騎手/枠順の設定）。スマホでは縦一列 */
+:root {
+  --bg: #EEF0EC;
+  --surface: #FAFBF8;
+  --ink: #18201B;
+  --muted: #5B665F;
+  --line: #D0D6CF;
+  --accent: #5E3A8C;        /* 女王の紫（文字・線） */
+  --accent-fill: #6C45A0;   /* 女王の紫（面） */
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E9E0F4;
+  --turf: #3D7A51;
+  --turf-edge: #2E6141;
+  --infield: #D9E5D5;
+  --pond: #A3C6D2;
+  --rail: #FFFFFF;
+  --chip-line: rgba(24, 32, 27, .35);
+  --good: #2C7A4C;
+  --warn: #B4541B;
+  --shadow: 0 1px 0 rgba(24,32,27,.06), 0 6px 20px -12px rgba(24,32,27,.35);
+  --f-display: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
+  --f-body: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif;
+  --f-num: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1412; --surface: #171E1A; --ink: #E4EAE6; --muted: #95A39A; --line: #2B3630;
+    --accent: #C2A6EC; --accent-fill: #7F58B8; --accent-ink: #FFFFFF; --accent-soft: #2C2340;
+    --turf: #2D5F40; --turf-edge: #224A32; --infield: #1B2921; --pond: #2B5262; --rail: #DCE5DF;
+    --chip-line: rgba(0,0,0,.55); --good: #6BC08E; --warn: #F0965C;
+    --shadow: 0 1px 0 rgba(0,0,0,.3), 0 8px 24px -14px rgba(0,0,0,.8);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1412; --surface: #171E1A; --ink: #E4EAE6; --muted: #95A39A; --line: #2B3630;
+  --accent: #C2A6EC; --accent-fill: #7F58B8; --accent-ink: #FFFFFF; --accent-soft: #2C2340;
+  --turf: #2D5F40; --turf-edge: #224A32; --infield: #1B2921; --pond: #2B5262; --rail: #DCE5DF;
+  --chip-line: rgba(0,0,0,.55); --good: #6BC08E; --warn: #F0965C;
+  --shadow: 0 1px 0 rgba(0,0,0,.3), 0 8px 24px -14px rgba(0,0,0,.8);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 14px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 18px 40px;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1260px; margin: 0 auto; display: grid; gap: 18px; }
+
+.mast { display: grid; gap: 4px; }
+.eyebrow { font-size: 12px; letter-spacing: .06em; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.eyebrow b { color: var(--accent); font-weight: 700; }
+h1 { margin: 0; font-family: var(--f-display); font-weight: 900; font-size: clamp(26px, 6vw, 40px); line-height: 1.15; letter-spacing: .01em; text-wrap: balance; }
+h1 { border-left: 6px solid var(--accent-fill); padding-left: 12px; }
+h1 .nb { display: inline-block; }
+.lede { margin: 0; color: var(--muted); max-width: 64ch; text-wrap: pretty; }
+
+.cols { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1000px) { .cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); align-items: start; } .side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); } }
+.col { display: grid; gap: 18px; min-width: 0; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); min-width: 0; }
+.panel-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 12px 14px 0; flex-wrap: wrap; }
+.panel-h h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: .02em; }
+.panel-b { padding: 12px 14px 14px; display: grid; gap: 12px; }
+.hint { font-size: 12px; color: var(--muted); }
+
+.hud { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 12px 0; }
+.hud span { font-family: var(--f-num); font-weight: 600; font-size: 15px; letter-spacing: .02em; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; font-variant-numeric: tabular-nums; }
+.hud .cond { color: var(--accent); font-family: var(--f-body); font-size: 13px; font-weight: 700; }
+.track canvas { display: block; width: 100%; height: auto; }
+.order { display: flex; gap: 6px; overflow-x: auto; padding: 10px 14px; border-top: 1px solid var(--line); scrollbar-width: thin; min-height: 50px; align-items: center; }
+.order .lab { font-size: 11px; color: var(--muted); margin-right: 2px; white-space: nowrap; }
+.order .it { display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto; font-size: 11px; color: var(--muted); }
+.num { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 3px; border-radius: 6px; font-family: var(--f-num); font-weight: 700; font-size: 15px; line-height: 1; border: 1px solid var(--chip-line); flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.w1 { background: #FFFFFF; color: #111; } .w2 { background: #1B1B1B; color: #fff; } .w3 { background: #D6262F; color: #fff; } .w4 { background: #1F5CC4; color: #fff; }
+.w5 { background: #F2D400; color: #111; } .w6 { background: #1E9A4B; color: #fff; } .w7 { background: #F28C1E; color: #111; } .w8 { background: #F37FB1; color: #111; }
+.w0 { background: transparent; color: var(--muted); border-style: dashed; border-color: var(--muted); }
+.run-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 0 14px 14px; }
+
+button, select, input { font: inherit; color: inherit; }
+.btn { appearance: none; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 9px 14px; font-weight: 700; cursor: pointer; min-height: 40px; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent-fill); color: var(--accent-ink); border-color: transparent; }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn:disabled { opacity: .5; cursor: progress; }
+.btn:focus-visible, .seg button:focus-visible, .tabs button:focus-visible, input:focus-visible, select:focus-visible, .preset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.field { display: grid; gap: 6px; }
+.field > span { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+.seg { display: flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; width: fit-content; max-width: 100%; }
+.seg button { appearance: none; border: 0; background: transparent; padding: 7px 12px; cursor: pointer; font-weight: 500; min-height: 36px; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); font-weight: 700; }
+.ctl-grid { display: grid; gap: 12px 18px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.presets { display: flex; gap: 8px; flex-wrap: wrap; }
+.preset { appearance: none; border: 1px dashed var(--muted); background: transparent; border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 13px; }
+.preset:hover { border-style: solid; }
+.preset[aria-pressed="true"] { background: var(--accent-soft); border: 1px solid var(--accent); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.progress { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.progress i { display: block; height: 100%; width: 0; background: var(--accent-fill); transition: width .1s linear; }
+.gate-state { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.gate-state.on { color: var(--accent); border-color: var(--accent); font-weight: 700; }
+
+.last { display: grid; gap: 4px; }
+.last-row { display: grid; grid-template-columns: 26px 28px minmax(0,1fr) auto; align-items: center; gap: 8px; font-size: 13px; }
+.last-row .pl { font-family: var(--f-num); font-weight: 700; font-size: 18px; color: var(--muted); text-align: right; }
+.last-row:first-child .pl { color: var(--accent); }
+.last-row .mg { font-family: var(--f-num); font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.last-row .sub { font-size: 11px; color: var(--muted); }
+.flag { font-size: 10px; color: var(--warn); border: 1px solid currentColor; border-radius: 4px; padding: 0 3px; margin-left: 4px; white-space: nowrap; }
+.flag.k { color: var(--accent); }
+
+.tabs { display: flex; gap: 2px; padding: 10px 10px 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs button { appearance: none; border: 0; background: transparent; padding: 8px 11px 10px; cursor: pointer; font-weight: 500; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--ink); font-weight: 700; border-bottom-color: var(--accent-fill); }
+.tabpane { padding: 12px 14px 14px; display: grid; gap: 12px; min-width: 0; }
+.scroll { overflow-x: auto; min-width: 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th { font-size: 11px; font-weight: 500; color: var(--muted); text-align: right; padding: 6px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; letter-spacing: .04em; }
+td { padding: 6px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+td.n { font-family: var(--f-num); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+td.dim { color: var(--muted); }
+td.l { text-align: left; }
+.horse { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.horse .nm { font-weight: 700; font-size: 13px; }
+.mark { font-weight: 900; color: var(--accent); width: 1.2em; display: inline-block; text-align: center; }
+.tags { font-size: 10.5px; color: var(--muted); letter-spacing: .02em; }
+.fit { display: inline-block; font-size: 10.5px; padding: 0 5px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); }
+.fit.g { color: var(--good); border-color: var(--good); }
+.fit.b { color: var(--warn); border-color: var(--warn); }
+.bar { display: flex; width: 84px; height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; }
+.bar i:nth-child(1) { background: var(--accent-fill); }
+.bar i:nth-child(2) { background: color-mix(in srgb, var(--accent-fill) 50%, var(--muted)); }
+.bar i:nth-child(3) { background: var(--muted); }
+.best { color: var(--accent); font-weight: 700; }
+.cmp-cell { display: grid; justify-items: end; line-height: 1.2; }
+.cmp-cell .w { font-family: var(--f-num); font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cmp-cell .p { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.empty { padding: 22px 12px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 10px; }
+.summary { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); }
+.sum-card { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 2px; }
+.sum-card .k { font-size: 11px; color: var(--muted); }
+.sum-card .v { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+.sum-card .v .pct { font-family: var(--f-num); font-size: 20px; color: var(--accent); margin-left: auto; font-variant-numeric: tabular-nums; }
+.sub-h { font-size: 13px; font-weight: 700; margin: 4px 0 0; }
+.mini { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+
+.weights { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.rng { display: grid; gap: 2px; }
+.rng label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); gap: 8px; }
+.rng output { font-family: var(--f-num); font-size: 15px; color: var(--ink); font-weight: 600; }
+input[type=range] { width: 100%; accent-color: var(--accent-fill); }
+.edit td { padding: 4px 4px; vertical-align: middle; }
+.edit input[type=number] { width: 52px; padding: 4px 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); text-align: right; font-family: var(--f-num); font-size: 15px; }
+.edit input.pct { width: 46px; }
+.edit select { padding: 4px 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); max-width: 120px; }
+.edit tr.off td { opacity: .45; }
+.note { font-size: 11px; color: var(--muted); white-space: normal; max-width: 30ch; display: block; }
+.gate-grid { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); }
+.gate-item { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; }
+.gate-item input { width: 54px; padding: 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); text-align: right; font-family: var(--f-num); font-size: 16px; }
+.gate-item .nm { font-weight: 700; font-size: 13px; flex: 1; min-width: 0; }
+.msg { font-size: 12px; }
+.msg.err { color: var(--warn); }
+.msg.ok { color: var(--good); }
+.log { display: grid; gap: 8px; }
+.log-item { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; gap: 4px; }
+.log-item .meta { font-size: 12px; color: var(--muted); }
+.log-item .top { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 13px; }
+.log-item .top span { display: inline-flex; gap: 4px; align-items: center; }
+.log-item .top em { font-style: normal; font-family: var(--f-num); font-size: 15px; font-weight: 600; }
+
+.notes { font-size: 12.5px; color: var(--muted); display: grid; gap: 4px; max-width: 84ch; }
+.notes ul { margin: 0; padding-left: 1.2em; display: grid; gap: 3px; }
+@media (prefers-reduced-motion: reduce) { .progress i { transition: none; } }
+</style>
+
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)} body{margin:0} img{max-width:100%}</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="mast">
+    <div class="eyebrow"><span><b>第51回 エリザベス女王杯 GI</b></span><span>2026.11.15 京都11R 15:40</span><span>芝2200m 右・外回りBコース</span><span>18頭・枠順確定</span></div>
+    <h1><span class="nb">エリザベス女王杯</span><span class="nb">シミュレーター</span></h1>
+    <p class="lede">戦績から付けた能力に、京都・右回りの得手不得手、2200mの距離適性、騎手の腕と京都での成績、その馬との噛み合いを重ね、淀の坂を下ってからのロングスパートを何度でも走らせます。11月13日に確定した枠順で走らせます（「枠順」タブで毎回ランダムにも切り替えられます）。</p>
+  </header>
+
+  <div class="cols">
+    <div class="col">
+      <section class="panel" aria-label="レース再生">
+        <div class="hud"><span class="cond" id="hudCond">良・フラット・ミドル</span><span id="hudRem">スタート前</span><span id="hudTime">0:00.0</span></div>
+        <div class="track"><canvas id="cv" width="800" height="460" aria-label="京都芝2200m外回りを走る出走馬"></canvas></div>
+        <div class="order" id="order"></div>
+        <div class="run-row">
+          <button class="btn primary" id="btnPlay" type="button">▶ 1レース再生</button>
+          <div class="seg" id="segSpeed" role="group" aria-label="再生速度">
+            <button type="button" data-v="4">4倍</button><button type="button" data-v="8">8倍</button><button type="button" data-v="16">16倍</button>
+          </div>
+          <span class="hint" id="seedLab"></span>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="h-cond">
+        <div class="panel-h"><h2 id="h-cond">条件</h2><span class="gate-state" id="gateState">枠順：確定（入力した馬番）</span></div>
+        <div class="panel-b">
+          <div class="field"><span>想定から選ぶ</span>
+            <div class="presets" id="presets">
+              <button class="preset" type="button" data-p="std">標準（良・ミドル・フラット）</button>
+              <button class="preset" type="button" data-p="tough">上がりがかかる（良・ミドル・フラット）</button>
+              <button class="preset" type="button" data-p="front">内・前有利（良・スロー）</button>
+              <button class="preset" type="button" data-p="outer">外差し（良・ミドル）</button>
+              <button class="preset" type="button" data-p="rain">雨（重・ミドル・フラット）</button>
+            </div>
+          </div>
+          <div class="ctl-grid">
+            <div class="field"><span>馬場</span>
+              <div class="seg" id="segGround" role="group" aria-label="馬場"><button type="button" data-v="good">良</button><button type="button" data-v="yield">稍重</button><button type="button" data-v="soft">重</button><button type="button" data-v="heavy">不良</button></div>
+            </div>
+            <div class="field"><span>展開・馬場バイアス</span>
+              <div class="seg" id="segBias" role="group" aria-label="展開"><button type="button" data-v="front">内・前有利</button><button type="button" data-v="flat">フラット</button><button type="button" data-v="outer">外差し</button></div>
+            </div>
+            <div class="field"><span>後続のペース</span>
+              <div class="seg" id="segPace" role="group" aria-label="ペース"><button type="button" data-v="slow">スロー</button><button type="button" data-v="mid">ミドル</button><button type="button" data-v="high">ハイ</button></div>
+            </div>
+            <div class="field"><span>時計・上がり</span>
+              <div class="seg" id="segTurf" role="group" aria-label="時計・上がり"><button type="button" data-v="fast">速い</button><button type="button" data-v="std">標準</button><button type="button" data-v="tough">かかる</button></div>
+            </div>
+            <div class="field"><span>一括の回数</span>
+              <div class="seg" id="segN" role="group" aria-label="回数"><button type="button" data-v="1000">1千</button><button type="button" data-v="3000">3千</button><button type="button" data-v="10000">1万</button><button type="button" data-v="30000">3万</button></div>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn primary" id="btnBatch" type="button">一括シミュレーション</button>
+            <button class="btn" id="btnCompare" type="button">内前・フラット・外差しを比較</button>
+            <button class="btn" id="btnCancel" type="button" hidden>中止</button>
+          </div>
+          <div class="progress" aria-hidden="true"><i id="prog"></i></div>
+        </div>
+      </section>
+    </div>
+
+    <div class="col side">
+      <section class="panel" aria-label="結果と設定">
+        <div class="tabs" role="tablist">
+          <button role="tab" type="button" aria-selected="false" data-tab="last">直前のレース</button>
+          <button role="tab" type="button" aria-selected="true" data-tab="stats">集計</button>
+          <button role="tab" type="button" aria-selected="false" data-tab="cmp">展開比較</button>
+          <button role="tab" type="button" aria-selected="false" data-tab="edit">各馬</button>
+          <button role="tab" type="button" aria-selected="false" data-tab="jock">騎手</button>
+          <button role="tab" type="button" aria-selected="false" data-tab="gate">枠順</button>
+          <button role="tab" type="button" aria-selected="false" data-tab="log">ログ</button>
+        </div>
+        <div class="tabpane" id="p-last" hidden></div>
+        <div class="tabpane" id="p-stats"></div>
+        <div class="tabpane" id="p-cmp" hidden></div>
+        <div class="tabpane" id="p-edit" hidden></div>
+        <div class="tabpane" id="p-jock" hidden></div>
+        <div class="tabpane" id="p-gate" hidden></div>
+        <div class="tabpane" id="p-log" hidden></div>
+      </section>
+    </div>
+  </div>
+
+  <section class="notes" aria-label="モデルについて">
+    <strong style="color:var(--ink)">このシミュレーションの前提</strong>
+    <ul>
+      <li><strong>11月10日：1週前追い切りと血統の評価を反映しました。</strong>追切S＝カムニャック・コガネノソラ、A＝ヴーレヴー・クイーンズウォーク・ジュウリョクピエロ・ラヴァンダ・ラフターラインズ、C＝ケリフレッドアスク・ステレンボッシュ・チェルヴィニア・ニシノティアモ・レイクラシック・レーゼドラマ（ジョスランは映像なしでB扱い）。血統S＝アクアヴァーナル・コガネノソラ、A＝ヴーレヴー・カムニャック・シャドウメテオ・ジュウリョクピエロ・ジョスラン・ラフターラインズ・レイクラシック、C＝レーゼドラマ。各馬のコメントから、道悪適性（コガネノソラ・ヴーレヴー・シャドウメテオ・ジュウリョクピエロ・ラフターラインズは上げ、ステレンボッシュ・ラヴァンダは下げ）、距離適性（アクアヴァーナル・クイーンズウォーク・セキトバイーストは下げ、カムニャック・ジョスラン・レイクラシック・コガネノソラは上げ）、瞬発力（エストゥペンダは上げ、ヴーレヴー・シャドウメテオ・レーゼドラマは下げ）なども直しています。</li>
+      <li><strong>馬場×血統</strong>：良馬場で時計が出るほどディープ（ウインドインハーヘア）・シーザリオを持つ馬が、雨で力のいる馬場ほどステイゴールド・キングカメハメハを持つ馬が有利になります。晴れ血統＝アクアヴァーナル・エストゥペンダ・カムニャック・クイーンズウォーク・ジョスラン・ステレンボッシュ・ラヴァンダ・ラフターラインズ・レイクラシック・レーゼドラマ。雨血統＝エストゥペンダ（ロードカナロア）・ケリフレッドアスク・コガネノソラ・シャドウメテオ・ジュウリョクピエロ・ステレンボッシュ（ルーラーシップ）・チェルヴィニア（母父キングカメハメハ）・ニシノティアモ・ラフターラインズ（母父キングカメハメハ）。ヴーレヴーとセキトバイーストはどちらも持ちません。</li>
+      <li><strong>出走馬（11月7日確認）</strong>：レーティング上位10頭（カムニャック〜レイクラシック）＋賞金順8頭で18頭。賞金順14番目のエセルフリーダが回避予定のため、19番目のヴーレヴーが繰り上がっています。エセルフリーダ（回避が撤回された場合）とマリアイリダータ（補欠1番手）は「各馬」タブに出走しない状態で入れてあり、チェックで切り替えられます。この2頭の数値は仮です。</li>
+      <li><strong>11月6日に、過去のエリザベス女王杯と各馬の好走時の上がりを解析して作り直しました。</strong>出走馬と騎手は11月4日時点の出走可能18頭と想定騎手（エセルフリーダは回避）です。乗り替わりや回避は「各馬」タブで変えられます。</li>
+      <li><strong>京都で行われた過去3年のエリ女</strong>（2023〜2025）は、前半1000mが61.1・59.6・59.9秒、レースの上がり3Fが35.1・34.4・34.9秒（平均34.8秒）。どの年も残り800mから11秒台が4ハロン続く持続戦で、1角を1〜2番手で回った6頭は12〜17着と全滅しました。勝ち馬は4角2〜8番手から上がり34.0〜34.4秒です。モデルはこの形（前半1000m約60秒、レース上がり約34.8秒、先行勢が直線で失速）に合わせ、淀の坂の下りでは後ろの馬ほど勢いをつけて押し上げるようにしています。</li>
+      <li>前半が遅い年ほど上がりも遅い（2023年は前半61.1秒で上がり35.1秒）のが京都外回りの特徴で、モデルでもスローは上がり35.2秒前後、ハイは34.4秒前後になります。</li>
+      <li><strong>得意な上がり</strong>は、各馬が好走したレース全体の上がり3Fから決めています。例：ラフターラインズはフローラS（レース上がり33.6秒）の瞬発力勝負で勝って34.2秒、カムニャックはオークス34.7秒・アイルランドT34.9秒で勝って34.8秒、ジョスランは小倉牝馬S34.5秒・アイルランドT34.9秒で34.7秒、アクアヴァーナルは持久戦向きで35.3秒、チェルヴィニアは秋華賞（36.7秒の消耗戦）を勝って35.8秒。条件から想定される上がりに近いほど加点、離れるほど減点です。</li>
+      <li><strong>近況</strong>を能力とは別の数字にしました。「能力」は全盛期の実績、「近況」は今の出来で、能力に足されます。チェルヴィニア（2024年の二冠馬・5戦続けて馬券外）は−14、ステレンボッシュ（2024年の桜花賞馬・近3走2桁着順）は−10、ケリフレッドアスクは−6、ニシノティアモは−3。2頭は「追っても反応がない」というコメントから瞬発力も下げ、復活に賭ける振れ幅も標準近くに戻しました。上り調子のヴーレヴー・シャドウメテオ・レーゼドラマは+2、アクアヴァーナルは+1、休み明けの3歳2頭は−1です。</li>
+      <li><strong>11月13日：気性（イレ込み）を入れました。</strong>カムニャックは昨年の秋華賞で、パドックから汗が目立ち、スタンド前発走で歓声を浴びてゲート内で立ち上がる素振りを見せるほどイレ込み、16着に大敗しました。エリ女の2200mも同じスタンド前発走なので、イレ込んで力を出せない確率を22%にしています（起きると勝率0.3%・平均12着、起きなければ勝率30%）。気性と折り合いに課題があるエストゥペンダ、精神面に不安があるステレンボッシュとチェルヴィニアも20%にしています（この2頭は近況のマイナスもそのままなので、二重に割り引いています）。これでカムニャックの勝率は良で30%→23%、雨を想定した混合で25%→19%になりました。</li>
+      <li><strong>11月13日：枠順を入れ、枠の有利不利を見直しました。</strong>エリ女の京都開催（過去7回）は3着内21頭のうち20頭が1〜6枠で、7枠は馬券圏内なし、8枠は18頭中1頭（2着1回）、1枠は【2-0-2-8】と内が強い傾向です。京都芝2200m外回りは1角まで約390mでコーナーを2回まるごと回るため、外枠ほど道中も外を回らされやすく、今週は内の傷みが少ないBコース替わり初週です。モデルでは道中の外枠のロスを強め、枠ごとの3着内率が平均比で1〜2枠1.4倍・3〜4枠1.15倍・5〜6枠0.9倍・7〜8枠0.65倍になるようにしました（実データは7〜8枠が0.33倍ほどですが、7回分と少ないので割り引いています）。直線はBコースの398.7mです。</li>
+      <li>枠の影響が大きいのは、1番ラヴァンダ（良で勝率4%→9%）、6番ヴーレヴー、7番カムニャック（24%→30%）の上昇と、7枠のジョスラン（15%→11%）・ラフターラインズ（10%→7%）、8枠のアクアヴァーナル（12%→7%）の下落です（いずれも枠順ランダム時との比較）。「枠順」タブで「毎回ランダム」に切り替えると、枠の影響を除いた比較もできます。</li>
+      <li><strong>11月11日に、評価を入れた状態で大量試行して調整し直しました。</strong>まず波乱度を過去10年のエリ女と照合しました（5番人気以内が3着内の67%、6〜10番人気が23%、11番人気以下が10%、1番人気の勝率30%・複勝率50%）。モデルの「人気」をモデル自身の勝率順とみなして比べ、当日の出来の振れ幅を0.45から0.40に下げています（3着内は上位5頭61%・6〜10番手25%・11番手以下14%、1番手の勝率25%・複勝率51%）。そのうえで良・上がり標準・ミドル・フラットの同じ乱数3万レースを約15回回して、私の見立てと11/10の評価を合わせた目標に能力値を0.1刻みで合わせ、別の乱数2万レースで馬場ごとに確かめました。良での勝率はカムニャック27%、ジョスラン15%、ジュウリョクピエロ12%、ラフターラインズ11%、アクアヴァーナル10%です。</li>
+      <li>コメントと馬場ごとの結果が合うかも確かめ、アクアヴァーナル（晴れの方が良いが雨でもマイナスは小さい）・ジョスラン（良が良いが雨でも大きなマイナスではない）・ラフターラインズ（道悪はこなすが良の方が良い）の道悪適性を下げ、雨に脆いステレンボッシュは道悪適性50・雨血統0.5にしました。結果、アクアヴァーナルとラフターラインズは馬場を問わず10%前後、ジョスランは良15%→不良9%、ジュウリョクピエロは良12%→不良19%、ヴーレヴーは良3%→重11%、コガネノソラは良1.5%→不良5.5%になります。</li>
+      <li>このとき、モデル全体の形も実際のレースと照らしています（良・ミドルで勝ちタイム2:11.2、前半1000m60.5秒、レース上がり34.6秒）。1角を1〜2番手で回った馬の3着内率は14%、8枠の勝率は1枠の約0.8倍です。</li>
+      <li>カムニャックは秋華賞で3番手から速い流れに巻き込まれて16着、オークスとアイルランドTは中団から差しているので、基本作戦を差しにしています。セキトバイーストは昨年このレースで3〜4番手から6着だったので、基本を先行（45%で逃げ）にしています。</li>
+      <li>1週前追い切り・TB評価・血統の評価（S〜C）を入れる欄があります。初期値はすべてB（影響なし）です。</li>
+      <li><strong>騎手の腕と勝負強さ（11月6日）</strong>：「腕」は今年（11/1終了時点）の勝率と複勝率から、「勝負強さ」は重賞の通算複勝率、今年のJRA G1勝利、6〜8月の重賞成績、回収率（人気以上の着順に持ってくるか）から付けました。ルメール（腕98・勝負強さ90）、武豊（81・90：今年G1 3勝）、松山（83・81：G1 3勝）、岩田望来（85・77：回収率が高く人気以上に走らせる）が上位。川田は今年G1未勝利で夏の重賞0-0-0-7ですが、直近の菊花賞（京都）と天皇賞秋で続けて8番人気の馬を2着に持ってきており、秋の大舞台での勝負強さを評価して77にしています（腕90）。今村聖奈は今年の勝率4.7%で腕68ですが、ジュウリョクピエロとはオークスを勝ったコンビなので乗り慣れで加点されます。マーカンドは今年のJRAデータがないため推定です。</li>
+      <li>騎手は他に「京都芝の成績」「中長距離の得意度」「得意な乗り方」を持ち、馬の作戦と乗り方が合うか、近5走で何回乗っているかで噛み合いを判定します。</li>
+      <li>京都芝2200m外回りは、スタンド前の直線から発走して1角まで約390m。向正面の半ばから3角にかけて淀の坂を上り（残り1150〜790m）、3角の頂上から4角出口まで下ります（残り790〜430m）。直線404mは平坦です。</li>
+      <li>道悪適性が70未満の馬は、馬場が悪くなるほど当日の出来の振れ幅が大きくなります。</li>
+      <li>理論オッズは勝率の逆数（控除なし）です。「各馬」タブは馬番順に並んでいます。</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+// ===== エリザベス女王杯 シミュレーター レースエンジン（京都芝2200m・外回り） =====
+(function (G) {
+  const DIST = 2200;
+  // 京都芝外回り（Aコース）1周1894m。ゴール→1角までfe、1-2角C、向正面Sb、3-4角C、直線404m（右回り）
+  // 2200mはホームストレッチ（4角出口から約100m地点）から発走し、スタンド前を通って1角まで約390m
+  const TRACK = { fe: 85, C: 463, Sb: 484, home: 399 };   // Bコース（直線398.7m）
+  TRACK.L = TRACK.fe + TRACK.C + TRACK.Sb + TRACK.C + TRACK.home;
+  TRACK.start = ((TRACK.L - (DIST - TRACK.L)) % TRACK.L + TRACK.L) % TRACK.L; // 発走地点（コース座標）
+  const R = TRACK.C / Math.PI;
+  const LANE_M = 10;                                 // 内ラチ〜外(lane=1)までの幅(m)
+  // 淀の坂：向正面の半ばから3角にかけて上り（約4m）、3角の頂上から4角出口まで下る（残り距離m）
+  const SLOPE_UP = [1150, 790];
+  // 枠の効き方。京都芝2200m外回りは1角まで約390mで、コーナーを2回まるごと回るため、外枠ほど外を回らされやすい。
+  // エリ女の京都開催（過去7回）は3着内21頭のうち20頭が1〜6枠、7枠は馬券圏内なし、8枠は18頭中1頭
+  const GATE = { mid: +(globalThis.process?.env?.GATE_MID ?? 0.30), start: +(globalThis.process?.env?.GATE_E ?? 0) };
+  const SLOPE_DOWN = [790, 430];
+
+  // コース座標 s(ゴール=0、進行方向に増加)
+  function courseS(d) { return (TRACK.start + d) % TRACK.L; }
+  function cornerAt(s) {
+    const { fe, C, Sb } = TRACK;
+    if (s < fe) return 0;
+    if (s < fe + C) return 1;
+    if (s < fe + C + Sb) return 0;
+    if (s < fe + 2 * C + Sb) return 2;
+    return 0;
+  }
+
+  // JRAの枠番（頭数で変わる）
+  function wakuOf(no, n) {
+    if (n <= 8) return no;
+    const base = Math.floor(n / 8), rem = n % 8;
+    const cnt = [];
+    for (let f = 0; f < 8; f++) cnt.push(base + (f >= 8 - rem ? 1 : 0));
+    let c = 0;
+    for (let f = 0; f < 8; f++) { c += cnt[f]; if (no <= c) return f + 1; }
+    return 8;
+  }
+
+  function randn(rng) {
+    let u = 0, v = 0;
+    while (u === 0) u = rng();
+    while (v === 0) v = rng();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+  function makeRng(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  const GROUND = {
+    good:  { label: '良',   slow: 0.00, drain: 0.00, g: 0.0 },
+    yield: { label: '稍重', slow: 0.22, drain: 0.07, g: 0.35 },
+    soft:  { label: '重',   slow: 0.48, drain: 0.15, g: 0.7 },
+    heavy: { label: '不良', slow: 0.75, drain: 0.24, g: 1.0 },
+  };
+  const PACE = {
+    slow: { label: 'スロー', v: 16.10 },
+    mid:  { label: 'ミドル', v: 16.44 },
+    high: { label: 'ハイ',   v: 16.78 },
+  };
+  const BIAS = { front: { label: '内・前有利' }, flat: { label: 'フラット' }, outer: { label: '外差し' } };
+  // 馬場の時計・上がり：速い＝瞬発力勝負、かかる＝持続力勝負
+  const TURF = {
+    fast:  { label: '上がり速い',   v: 0.10,  kw: 1.15, drain: 0.95 },
+    std:   { label: '上がり標準',   v: 0,     kw: 1.0,  drain: 1.0 },
+    tough: { label: '上がりかかる', v: -0.15, kw: 0.80, drain: 1.10 },
+  };
+
+  // 作戦：位置取りの目安（0=先頭〜3=最後方）
+  const STRATS = ['大逃げ', '逃げ', '先行', '好位', '差し', '追込', 'まくり'];
+  const STYLEV = { '大逃げ': 0, '逃げ': 0, '先行': 0.9, '好位': 1.5, '差し': 2.2, '追込': 2.9, 'まくり': 2.6 };
+  const GAP = (sv) => sv * 5.5;                       // 先頭集団からの理想の差(m)
+  // 騎手の得意な乗り方と、噛み合う作戦
+  const JTYPES = {
+    '逃げ':   ['大逃げ', '逃げ', '先行'],
+    '先行':   ['逃げ', '先行', '好位'],
+    '好位':   ['先行', '好位', '差し'],
+    '差し':   ['好位', '差し', '追込'],
+    'まくり': ['差し', '追込', 'まくり'],
+    '万能':   STRATS,
+  };
+
+  function fitScore(jtype, strat) {
+    const ok = (JTYPES[jtype] || []).includes(strat);
+    return jtype === '万能' ? 0.6 : ok ? 1 : -0.6;
+  }
+  function rideScore(rides) {
+    return rides <= 0 ? -0.6 : rides === 1 ? 0 : rides <= 3 ? 0.5 : 1;
+  }
+
+  // 条件から想定される「レース全体の上がり3F」（先頭が残り600mを過ぎてからゴールまで）
+  // 京都で行われた過去3年のエリザベス女王杯は35.1・34.4・34.9秒（平均34.8）。京都外回りは残り800mからの4ハロン持続戦になりやすく、
+  // 前半が遅い年ほど上がりも遅い（2023年は前半1000m61.1秒で上がり35.1秒）。このモデルで実際に計った値に合わせている
+  function raceL3(cfg) {
+    const t = { fast: -0.4, std: 0, tough: 0.7 }[cfg.turf || 'std'] || 0;
+    const p = { slow: 0.4, mid: 0, high: -0.4 }[cfg.pace] || 0;
+    const g = { good: 0, yield: 0.6, soft: 1.2, heavy: 1.9 }[cfg.ground] || 0;
+    const b = { front: -0.5, flat: 0, outer: -0.3 }[cfg.bias] || 0;
+    return 34.8 + t + p + g + b;
+  }
+
+  // 馬場と血統：良馬場で時計が出るほどディープ（ウインドインハーヘア）・シーザリオの血が、
+  // 雨で力のいる馬場（上がりがかかる馬場も少し）ほどステイゴールド・キングカメハメハの血が有利
+  function groundPower(cfg) {
+    const g = GROUND[cfg.ground].g + (cfg.turf === 'tough' ? 0.3 : cfg.turf === 'fast' ? -0.2 : 0);
+    return Math.max(0, Math.min(1, g));
+  }
+  function bloodGround(h, cfg) {
+    const p = groundPower(cfg);
+    return (h.bg || 0) * 0.035 * (1 - 1.6 * p) + (h.bw || 0) * 0.05 * p;
+  }
+
+  // 今回の条件での総合値（能力値の目盛り）。当日の出来の振れ・作戦の変更・騎手の奇策を除いた「期待値」で、表の確認用
+  function ratingOf(h, cfg, jockeys) {
+    const w = cfg.weights, gr = GROUND[cfg.ground];
+    const j = jockeys[h.jockey] || { skill: 70, kyoto: 70, mid: 70, type: '万能', kisaku: 0 };
+    let A = (h.abil + (h.form || 0) - 60) / 40;
+    A += 0.08 * ((h.kyoto - 70) / 30) * (w.kyoto ?? 1);
+    A += 0.10 * ((h.dist - 75) / 25) * (w.dist ?? 1);
+    A += 0.018 * (56 - h.kg);
+    const GV = (g) => ({ S: 1, A: 0.5, B: 0, C: -0.5 })[g] || 0;
+    A += 0.030 * GV(h.cond) * (w.cond ?? 1) + 0.100 * GV(h.tb) * (w.tb ?? 1) + 0.050 * GV(h.blood) * (w.blood ?? 1) + 0.050 * GV(h.blood2) * (w.blood2 ?? 1);
+    A += bloodGround(h, cfg) * (w.bloodG ?? 1);
+    if (h.l3) { const dev = Math.abs(raceL3(cfg) - h.l3) / (h.l3w || 0.6); A += Math.max(-0.08, 0.05 * (1 - dev * dev)); }
+    const fit = fitScore(j.type, h.strat), ride = rideScore(h.rides || 0);
+    A += (0.050 * (j.skill - 75) / 25 + 0.035 * ((j.big ?? 65) - 65) / 25 + 0.025 * (j.kyoto - 70) / 30 + 0.015 * (j.mid - 70) / 30 + 0.018 * fit + 0.014 * ride) * w.jockey;
+    A += gr.g * (h.heavy / 100 - 0.7) * 0.55;
+    return 60 + 40 * A;
+  }
+
+  // 1頭ぶんの今回の能力を組み立てる
+  function prepare(h, ctx, rng) {
+    const cfg = ctx.cfg, w = cfg.weights, gr = GROUND[cfg.ground];
+    const j = ctx.jockeys[h.jockey] || { skill: 70, kyoto: 70, mid: 70, type: '万能', kisaku: 0 };
+    // 作戦の決定：基本作戦 → 別作戦（確率）→ 騎手の奇策
+    let strat = h.strat, how = '';
+    if (h.alt && rng() < (h.altP || 0)) { strat = h.alt; how = '別作戦'; }
+    if (rng() < (j.kisaku || 0) * w.kisaku) {
+      const pool = ['大逃げ', '追込', 'まくり'].filter(s => s !== strat);
+      strat = pool[Math.floor(rng() * pool.length)]; how = '奇策';
+    }
+    const sv = STYLEV[strat];
+    // 能力
+    // 実績（全盛期）の能力に、近況（今の出来・衰え・上昇）を足す
+    let A = (h.abil + (h.form || 0) - 60) / 40;
+    A += 0.08 * ((h.kyoto - 70) / 30) * (w.kyoto ?? 1);            // 京都・右回り適性
+    A += 0.10 * ((h.dist - 75) / 25) * (w.dist ?? 1);              // 2200mの距離適性
+    A += 0.018 * (56 - h.kg);                                      // 斤量（1kg≒0.4馬身）
+    // 外部の評価（S/A/B/C）：追い切り＝当日の調子、TB評価＝近走の質から見た能力、血統2つ＝京都2200への適性
+    const GV = (g) => ({ S: 1, A: 0.5, B: 0, C: -0.5 })[g] || 0;
+    A += 0.030 * GV(h.cond)  * (w.cond  ?? 1);
+    A += 0.100 * GV(h.tb)    * (w.tb    ?? 1);
+    A += 0.050 * GV(h.blood) * (w.blood ?? 1);
+    A += 0.050 * GV(h.blood2) * (w.blood2 ?? 1);
+    A += bloodGround(h, cfg) * (w.bloodG ?? 1);                    // 馬場×血統（晴れ＝ディープ・シーザリオ／雨＝ステイゴールド・キンカメ）
+    // 得意な上がり：その馬が好走しやすいレースの上がり3F（秒）。想定上がりから外れるほど割り引く
+    if (h.l3) {
+      const dev = Math.abs(raceL3(cfg) - h.l3) / (h.l3w || 0.6);
+      A += Math.max(-0.08, 0.05 * (1 - dev * dev));
+    }
+    // 騎手：腕（今年の勝率・複勝率）・勝負強さ・京都・中長距離・作戦との噛み合い・乗り慣れ
+    const jSkill = (j.skill - 75) / 25, jKyoto = (j.kyoto - 70) / 30, jMid = (j.mid - 70) / 30;
+    const fit = fitScore(j.type, strat), ride = rideScore(h.rides || 0);
+    const jBig = ((j.big ?? 65) - 65) / 25;          // 勝負強さ：重賞・G1での成績と、人気以上に走らせる力
+    const jBonus = 0.050 * jSkill + 0.035 * jBig + 0.025 * jKyoto + 0.015 * jMid + 0.018 * fit + 0.014 * ride;
+    A += jBonus * w.jockey;
+    // 馬場
+    A += gr.g * (h.heavy / 100 - 0.7) * 0.55;
+    // 当日の出来。道悪が苦手な馬（道悪適性70未満）は、馬場が悪くなるほど走りが安定しない
+    const wetVol = 1 + gr.g * Math.max(0, (70 - h.heavy) / 30);
+    A += randn(rng) * cfg.noise * (h.vol || 1) * wetVol;
+    const K = (h.kick - 60) / 40;
+    const stamina = 0.55 + (h.stamina / 100) * 0.45 + gr.g * (h.heavy / 100 - 0.7) * 0.12;
+    const drainMul = 1 + gr.drain * (1.35 - h.heavy / 100);
+    // 仕掛けどころ：京都外回りは3角の下りから動く。腕のある騎手ほどぶれない
+    const timingNoise = (1.15 - j.skill / 100) * 260;
+    let spurtRem = 760 + randn(rng) * timingNoise;
+    if (strat === 'まくり') spurtRem = 1100 + randn(rng) * timingNoise * 0.6;
+    spurtRem = Math.max(460, Math.min(1300, spurtRem));
+    // 気性：イレ込んで力を出せない確率（tempP）。発生すると道中で余計に体力を使い、能力も下がる
+    const temper = rng() < (h.tempP || 0) * (w.temper ?? 1);
+    if (temper) A -= 0.10;
+    const trouble = cfg.trouble * (1.55 - j.skill / 100) * (sv >= 2 && strat !== 'まくり' ? 1.35 : 1);
+    return {
+      h, j, strat, how, sv, A, K, stamina, drainMul, jBonus, fit, ride,
+      // 外枠耐性：外枠からでもロスなく好位に潜り込めるか（0〜1）。1なら枠の内外の影響をなくす
+      gateNo: h._gate, gateFrac: (h._gate - 1) / Math.max(1, ctx.n - 1) * (1 - Math.max(0, Math.min(1, h.gateTol || 0))),
+      temper, d: 0, v: 0, E: 100 * stamina * (temper ? 0.8 : 1), lane: 0, finished: false, time: 0,
+      spurtAt: DIST - spurtRem,
+      trouble: rng() < trouble ? (DIST - 640 + rng() * 480) : -1,
+      troubleLeft: 0, flag: '',
+    };
+  }
+
+  function makeRace(horses, jockeys, cfg, seed) {
+    const rng = makeRng(seed);
+    const gr = GROUND[cfg.ground];
+    const list = horses.filter(h => !h.scratch).map(h => Object.assign({}, h));
+    const n = list.length;
+    const fixed = cfg.gateMode === 'fixed' && list.every(h => h.gate >= 1 && h.gate <= 18)
+      && new Set(list.map(h => h.gate)).size === n;
+    if (fixed) {
+      const sorted = list.slice().sort((a, b) => a.gate - b.gate);
+      sorted.forEach((h, i) => { h._gate = i + 1; h._no = h.gate; });
+    } else {
+      const order = list.map((_, i) => i);
+      for (let i = n - 1; i > 0; i--) { const k = Math.floor(rng() * (i + 1)); [order[i], order[k]] = [order[k], order[i]]; }
+      order.forEach((idx, i) => { list[idx]._gate = i + 1; list[idx]._no = i + 1; });
+    }
+    const ctx = { cfg, jockeys, n };
+    const tf = TURF[cfg.turf] || TURF.std;
+    const cruiseBase = PACE[cfg.pace].v - gr.slow + tf.v + randn(rng) * 0.12;
+    const runners = list.map(h => prepare(h, ctx, rng));
+    runners.forEach(r => { r.no = r.h._no; r.waku = wakuOf(r.h._gate, n); r.lane = 0.02 + r.gateFrac * 0.32; });
+    return { rng, cfg, cruiseBase, runners, n, t: 0, done: false, order: [], fixed };
+  }
+
+  function step(race, dt) {
+    const { runners, cfg, rng } = race;
+    const cruise = race.cruiseBase;
+    const tf = TURF[cfg.turf] || TURF.std;
+    const live = runners.filter(r => !r.finished);
+    let packLead = 0, leadD = 0, bigD = 0;
+    for (const r of live) {
+      if (r.d > leadD) leadD = r.d;
+      if (r.strat === '大逃げ') { if (r.d > bigD) bigD = r.d; }
+      else if (r.d > packLead) packLead = r.d;
+    }
+    if (packLead === 0) packLead = leadD;
+    // 逃げ争い（大逃げは除く）
+    let fighters = 0;
+    for (const r of live) if (r.strat === '逃げ' && packLead - r.d < 3 && r.d < 1200) fighters++;
+    const fight = fighters >= 2 ? 0.16 * (fighters - 1) : 0;
+    // 大逃げを放置しすぎたら後続が早めに追いかける
+    const chase = packLead > 800 ? Math.max(0, Math.min(0.45, (bigD - packLead - 20) * 0.012)) : 0;
+
+    live.sort((a, b) => b.d - a.d).forEach((r, i) => { r.pos = i; });
+    const nRun = runners.length;
+
+    for (const r of runners) {
+      if (r.finished) continue;
+      const rem = DIST - r.d;
+      let vt;
+      const big = r.strat === '大逃げ';
+      if (r.d < 360) {
+        vt = big ? cruise + 1.25 : cruise + 0.95 * (1 - Math.min(3, r.sv) / 3) - 0.25 + r.A * 0.15;
+      } else if (r.d < r.spurtAt) {
+        if (big) {
+          vt = cruise + (r.d < 1300 ? 0.85 - (cruise - 16.10) * 0.6 : 0.05);
+        } else {
+          const gap = packLead - r.d;
+          vt = cruise + fight + chase + Math.max(-0.35, Math.min(0.35, (gap - GAP(r.sv)) * 0.045));
+          if (r.d >= packLead - 0.01) vt = cruise + fight + chase;
+        }
+      } else if (big) {
+        // 大逃げは瞬発力ではなく粘り込み。残りの体力がそのまま効く
+        vt = cruise + (0.15 + 0.45 * r.A) * Math.max(0, Math.min(1.2, r.E / 40));
+      } else {
+        // スローの上がり勝負ほど瞬発力が、ハイペースの消耗戦ほど持続力（残り体力）が効く
+        const KW = ({ slow: 1.6, mid: 1.0, high: 0.55 }[cfg.pace] || 1) * tf.kw;
+        let kick = 0.70 + 0.55 * r.A + 0.55 * KW * r.K;
+        kick *= 0.50 + 0.50 * Math.max(0, Math.min(1.8, r.E / 36));
+        if (cfg.bias === 'front') kick += 0.40 * (1 - r.pos / (nRun - 1)) - 0.30 * r.lane;
+        else if (cfg.bias === 'outer') {
+          kick += 0.60 * r.lane - 0.28 * (1 - r.pos / (nRun - 1));
+          if (r.lane < 0.3 && r.pos > 2) kick -= 0.28;
+        }
+        // 4角を回るまでは控えめ（下り坂の勢いで進む）。まくりは3角の下りから長く脚を使う
+        const ramp = rem > TRACK.home ? (r.strat === 'まくり' ? 0.66 : 0.55) : 1;
+        vt = cruise + kick * ramp;
+      }
+      // 淀の坂：上りは持続力のない馬ほど苦しく、下りは全馬が勢いに乗る
+      const up = rem <= SLOPE_UP[0] && rem > SLOPE_UP[1];
+      const down = rem <= SLOPE_DOWN[0] && rem > SLOPE_DOWN[1];
+      if (up) vt -= 0.20 * (1.25 - r.stamina);
+      // 下りは後ろの馬ほど勢いをつけて外から押し上げる（前の馬はすでに目一杯）
+      if (down) vt += 0.06 + 0.09 * Math.min(3, r.sv);
+      // 不利
+      if (r.trouble > 0 && r.d >= r.trouble && r.troubleLeft === 0 && !r.flag) { r.troubleLeft = 3 + rng() * 3; r.flag = '不利'; }
+      if (r.troubleLeft > 0) { vt -= 1.4; r.troubleLeft = Math.max(0, r.troubleLeft - dt); }
+      if (r.E < 0) vt -= Math.min(3.2, -r.E * 0.075);
+      vt += randn(rng) * 0.05;
+      const acc = 1.7;
+      if (r.v === 0) r.v = vt * 0.55;
+      r.v += Math.max(-acc * dt, Math.min(acc * dt, vt - r.v));
+      // 消耗：先頭は風を受け、馬群の中は楽。後ろで構える馬ほど道中は楽（脚をためる）
+      const rel = r.v / 16.6;
+      const shelter = big ? 1.22 : r.pos === 0 ? 1.06 : r.pos === 1 ? 1.04 : 1.08 - 0.16 * Math.min(r.strat === 'まくり' ? 2.2 : 3, r.sv);
+      r.E -= dt * 0.59 * Math.pow(rel, 4) * r.drainMul / r.stamina * shelter * (up ? 1.2 : down ? 0.9 : 1) * tf.drain;
+      // 走路
+      const s = courseS(r.d);
+      let eff = r.v;
+      if (cornerAt(s)) eff = r.v * R / (R + r.lane * LANE_M);
+      // 進路
+      let lt;
+      if (r.d < 360) lt = r.d < 150 ? 0.02 + r.gateFrac * 0.32 : Math.max(0.02, (0.02 + r.gateFrac * 0.32) * (r.sv < 1.2 ? 0.45 : 0.5));
+      else if (r.d < r.spurtAt) {
+        lt = Math.min(0.75, 0.03 + Math.min(3, r.sv) * 0.07 + r.gateFrac * GATE.mid + (r.pos > 8 ? 0.08 : 0));
+        if (big) lt = 0.02;
+        r.cruiseLane = lt;
+      } else {
+        if (r.strat === 'まくり') lt = 0.75;
+        else if (cfg.bias === 'outer') lt = r.sv >= 1.5 ? 0.5 + r.sv * 0.12 : 0.16 + r.gateFrac * 0.2;
+        else if (cfg.bias === 'front') lt = 0.04 + r.sv * 0.06 + (r.pos > 5 ? 0.16 : 0);
+        else lt = 0.06 + r.sv * 0.12 + (r.pos > 6 ? 0.15 : 0);
+        lt = Math.min(1, lt + r.gateFrac * 0.06);
+        if (rem > TRACK.home + 40 && r.strat !== 'まくり') lt = Math.min(lt, (r.cruiseLane || 0.2) + 0.18);
+      }
+      // 外枠から前の位置を取りに行くと、1角までに脚を使う
+      if (r.d < 390 && GATE.start > 0) r.E -= dt * GATE.start * r.gateFrac * (r.sv < 1.6 ? 1 : 0.4);
+      const ls = r.d < 400 ? 0.2 : 0.14;
+      r.lane += Math.max(-ls * dt, Math.min(ls * dt, lt - r.lane));
+      const prevD = r.d;
+      r.d += eff * dt;
+      if (r.d >= DIST) {
+        const frac = (DIST - prevD) / (r.d - prevD);
+        r.time = race.t + dt * frac;
+        r.d = DIST; r.finished = true; race.order.push(r);
+      }
+    }
+    race.t += dt;
+    if (race.order.length === runners.length || race.t > 220) {
+      const rest = runners.filter(r => !r.finished).sort((a, b) => b.d - a.d);
+      for (const r of rest) { r.finished = true; r.time = race.t + (DIST - r.d) / 15; race.order.push(r); }
+      race.order.sort((a, b) => a.time - b.time);
+      race.done = true;
+    }
+  }
+
+  function runOne(horses, jockeys, cfg, seed, dt) {
+    const race = makeRace(horses, jockeys, cfg, seed);
+    while (!race.done) step(race, dt || 0.5);
+    return race;
+  }
+
+  G.ErizaEngine = { GATE, raceL3, ratingOf, groundPower, bloodGround, R, DIST, TRACK, LANE_M, SLOPE_UP, SLOPE_DOWN, GROUND, PACE, BIAS, TURF, STRATS, STYLEV, JTYPES, wakuOf, courseS, cornerAt, makeRace, step, runOne, makeRng, fitScore, rideScore };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+// エリザベス女王杯2026 出走可能18頭（11/4時点の登録・想定騎手。エセルフリーダは回避、マリアイリダータ・サフィラ・カテリーナ・アマイは除外対象）
+// abil=実績（全盛期）の総合力 form=近況（今の出来・衰え・上昇。能力値に足す） kick=瞬発力 stamina=持続力（京都外回りのロングスパート） kyoto=京都・右回り適性 dist=2200mの距離適性 heavy=道悪適性
+// bg=晴れ血統（ディープ／ウインドインハーヘア・シーザリオを持つ） bw=雨血統（ステイゴールド・キングカメハメハを持つ）
+// cond=1週前追い切り blood=血統評価（11/10にユーザー評価を反映） tb/blood2=外部の評価（S/A/B/C。未入力のあいだはB＝影響なし）
+// l3=得意なレースの上がり3F(秒) vol=当日の出来の振れ幅(1が標準) gateTol=外枠耐性(0〜1)
+// strat=基本作戦 alt/altP=別作戦とその確率 rides=近5走でその騎手が乗った回数 gate=馬番（11/13確定。馬番順に並べている）
+(function (G) {
+G.ERIZA_HORSES = [
+  { gate: 1, id: 15, name: 'ラヴァンダ', cond: 'A', blood: 'B', bg: 1, bw: 0,         sa: '牝5', kg: 56, jockey: '岩田望来',   sire: 'シルバーステート', abil: 87.6, form: 0, kick: 88, stamina: 74, kyoto: 80, dist: 66, heavy: 58, strat: '差し', alt: '好位',  altP: 0.30, rides: 4, note: 'アイルランドT3着(2人気・上がり33.6)、中京記念1着、東京新聞杯2着。2024年秋華賞は13人気で4着(京都・消耗戦を先行)。近走はマイル中心で2200mは長い【11/10評価】距離が持つか。雨は良くない。末脚勝負なら' },
+  { gate: 2, id: 17, name: 'レイクラシック', cond: 'C', blood: 'A', bg: 1, bw: 0,     sa: '牝3', kg: 54, jockey: '西村淳也',   sire: 'キタサンブラック',               abil: 77.4, form: -1,   kick: 81, stamina: 78, kyoto: 76, dist: 86, heavy: 78, l3: 34.8, l3w: 0.8, strat: '差し', alt: '好位',  altP: 0.25, rides: 0, note: 'オークス6着(12人気・上がり33.6・レース上がり34.8)。レーティング109でぎりぎり出走圏【11/10評価】キタサンブラック産駒で母系にホワイトマズルとSadler’s Wells。舞台・距離は合い雨でも良い。成長待ちで晩成の可能性' },
+  { gate: 3, id: 11, vol: 1.05, tempP: 0.2, name: 'ステレンボッシュ', cond: 'C', blood: 'B', bg: 1, bw: 0.5, sa: '牝5', kg: 56, jockey: '池添謙一', sire: 'エピファネイア', abil: 87.1, form: -10, kick: 79, stamina: 80, kyoto: 74, dist: 82, heavy: 50, strat: '好位', alt: '差し', altP: 0.35, rides: 1, note: '2024年桜花賞馬（オークス2着・秋華賞3着）。【近況】昨年のエリ女10着(出遅れ・3〜4角で不利)、安田記念10着、新潟記念11着。戸崎騎手は「反応がなく、気持ちがどうか」【11/10評価】雨に脆い（雨でなければ血統評価A）。馬体は良いが精神面がどうか' },
+  { gate: 4, id: 3,  vol: 1.15, tempP: 0.20, name: 'エストゥペンダ', cond: 'B', blood: 'B', bg: 1, bw: 1,     sa: '牝4', kg: 56, jockey: '荻野極',     sire: 'サートゥルナーリア',               abil: 76.5, form: 0,   kick: 90, stamina: 70, kyoto: 55, dist: 74, heavy: 66, l3: 33.9, l3w: 0.8, strat: '差し', alt: '追込',  altP: 0.30, rides: 0, note: '府中牝馬S8着。末脚型で、好走は左回り(4-0-3-2)に偏る【11/10評価】非凡なスピードと瞬発力で高速馬場向き。折り合いと気性に課題。京都はバテずに長く伸びる脚が要るので舞台は合わない' },
+  { gate: 5, id: 14, name: 'ニシノティアモ', cond: 'C', blood: 'B', bg: 0, bw: 1,     sa: '牝5', kg: 56, jockey: '津村明秀',   sire: 'ドゥラメンテ',               abil: 80.5, form: -3,  kick: 76, stamina: 80, kyoto: 72, dist: 78, heavy: 80, l3: 35.2, l3w: 1.0, strat: '先行', alt: '好位',  altP: 0.35, rides: 4, note: '2025年は福島記念(牡馬相手)を含む4連勝。【近況】ヴィクトリアマイル6着、府中牝馬S10着、アイルランドT7着【11/10評価】昔より調教の動きが悪い' },
+  { gate: 6, id: 2,  name: 'ヴーレヴー', cond: 'A', blood: 'A', bg: 0, bw: 0,         sa: '牝4', kg: 56, jockey: '吉田隼人',   sire: 'サトノクラウン',               abil: 83.7, form: 2,   kick: 72, stamina: 85, kyoto: 72, dist: 84, heavy: 88, l3: 35.6, l3w: 1.0, strat: '先行', alt: '好位',  altP: 0.35, rides: 3, note: 'オールカマー3着(重・牡馬相手)、クイーンS3着(流れた展開)、巴賞1着(3馬身半)。好走は上がりのかかる流れ。【近況】夏から上り調子で、1週前追い切りの評判も良い【11/10評価】夏の疲れなく好状態で穴。父サトノクラウンは道悪巧者で、近3走は向いた馬場。外回りの長い直線では決め手不足になりがち' },
+  { gate: 7, id: 4,  vol: 1.0, tempP: 0.22, name: 'カムニャック', cond: 'S', blood: 'A', bg: 1, bw: 0, sa: '牝4', kg: 56, jockey: '川田将雅', sire: 'ブラックタイド', abil: 87.9, form: 1, kick: 87, stamina: 84, kyoto: 70, dist: 88, heavy: 72, l3: 34.8, l3w: 0.9, strat: '差し', alt: '好位', altP: 0.40, rides: 5, note: 'アイルランドT1着(8番手から上がり33.4・レース上がり34.9)、ヴィクトリアマイル2着、オークス1着(11番手から・レース上がり34.7)。秋華賞は3番手から速い流れで16着。中団で脚をためると強い【11/10評価】前走完璧で状態良く上積みあり。距離も合う。気性だけが課題だが能力最上位' },
+  { gate: 8, id: 18, name: 'レーゼドラマ', cond: 'C', blood: 'C', bg: 1, bw: 0,       sa: '牝4', kg: 56, jockey: '松若風馬',   sire: 'キズナ',           abil: 79.2, form: 2,   kick: 64, stamina: 82, kyoto: 72, dist: 80, heavy: 74, l3: 35.8, l3w: 1.0, strat: '逃げ', alt: '先行',  altP: 0.35, rides: 2, note: 'チャレンジC7着、小倉記念3着(牡馬相手・上がり35.8)、小倉日経OP1着。2025年フラワーC勝ち馬。【近況】ブリンカーで逃げに転じて復調【11/10評価】瞬発力はない。後続に脚を使わせる形にはめたい。同型セキトバイーストがいるのはマイナス' },
+  { gate: 9, id: 5,  name: 'クイーンズウォーク', cond: 'A', blood: 'B', bg: 1, bw: 0, sa: '牝5', kg: 56, jockey: 'C.デムーロ', sire: 'キズナ',           abil: 88.2, form: 0, kick: 85, stamina: 78, kyoto: 56, dist: 70, heavy: 76, l3: 34.2, l3w: 0.8, strat: '好位', alt: '差し',  altP: 0.40, rides: 0, note: 'アイルランドT8着(3人気)、ヴィクトリアマイル3着、金鯱賞(2025)1着。勝ち星は左回りの速い上がりに集中し、右回りは秋華賞15着(消耗戦)など不振【11/10評価】調教で1F10.7。雨はあまり苦にしないかも。母はBCのダート1400 G1勝ちでスピード型、マイルがベストかも。鞍上含め過剰人気の傾向' },
+  { gate: 10, id: 12, name: 'セキトバイースト', cond: 'B', blood: 'B', bg: 0, bw: 0,   sa: '牝5', kg: 56, jockey: '浜中俊',     sire: 'デクラレーションオブウォー', abil: 83.4, form: 0, kick: 66, stamina: 82, kyoto: 72, dist: 66, heavy: 84, l3: 35.4, l3w: 0.9, strat: '先行', alt: '逃げ', altP: 0.45, rides: 5, note: '昨年のエリ女6着(3〜4番手・浜中騎手「距離はギリギリ」)、府中牝馬S連覇(稍重・レース上がり35.1)、アイルランドT15着(前半1000m57.9の逃げ)。道悪は1-2-1-0【11/10評価】デクラレーションオブウォー産駒でサンデーを持たない。逃げて他馬を削る戦法だが距離が長そう' },
+  { gate: 11, id: 9,  vol: 1.15, name: 'ジュウリョクピエロ', cond: 'A', blood: 'A', bg: 0, bw: 1, sa: '牝3', kg: 54, jockey: '今村聖奈', sire: 'オルフェーヴル', abil: 82.3, form: -1, kick: 84, stamina: 84, kyoto: 70, dist: 88, heavy: 82, l3: 34.8, l3w: 0.8, strat: '差し', alt: '追込', altP: 0.35, rides: 4, note: 'オークス1着(5人気・14番手から上がり最速33.1・レース上がり34.8)。芝3連勝でGI制覇。【近況】疝痛で秋華賞を回避し、オークス以来の休み明け【11/10評価】調教量は申し分ない。力差がどうか。オルフェーヴル産駒で母系はダート、パワーがあり雨でも良い' },
+  { gate: 12, id: 8,  name: 'シャドウメテオ', cond: 'B', blood: 'A', bg: 0, bw: 1,     sa: '牝4', kg: 56, jockey: '三浦皇成',   sire: 'オルフェーヴル',               abil: 76.7, form: 2,   kick: 78, stamina: 86, kyoto: 66, dist: 84, heavy: 82, l3: 34.7, l3w: 0.8, strat: '差し', alt: '好位',  altP: 0.25, rides: 3, note: '新潟牝馬S(L・芝2200)1着(1人気・8番手から上がり34.0)。GIは初挑戦。【近況】3勝クラスから連勝中で上り調子【11/10評価】父オルフェーヴルで雨歓迎、内回り向き。勢いあり。ギアチェンジに時間がかかるが長く良い脚を使う' },
+  { gate: 13, id: 10, name: 'ジョスラン', cond: 'B', blood: 'A', bg: 1, bw: 0,         sa: '牝4', kg: 56, jockey: 'C.ルメール', sire: 'エピファネイア',   abil: 89.4, form: 0, kick: 84, stamina: 82, kyoto: 76, dist: 82, heavy: 74, l3: 34.7, l3w: 0.8, strat: '好位', alt: '先行',  altP: 0.30, rides: 2, note: 'アイルランドT2着(上がり33.7・レース上がり34.9)、小倉牝馬S1着(上がり33.9・レース上がり34.5)、秋華賞(2025)4着。マイルの速い流れ(ヴィクトリアマイル8着)は不向き。2200mは未経験【11/10評価】エフフォーリアの全妹で距離延長は問題なし。良馬場の方が良いが、雨でも大きなマイナスではない。1週前の調教映像なし（調教はB扱い）' },
+  { gate: 14, id: 13, vol: 1.05, tempP: 0.2, name: 'チェルヴィニア', cond: 'C', blood: 'B', bg: 0, bw: 1, sa: '牝5', kg: 56, jockey: 'T.マーカンド', sire: 'ハービンジャー', abil: 89.1, form: -14, kick: 78, stamina: 84, kyoto: 80, dist: 88, heavy: 72, l3: 35.8, l3w: 0.9, strat: '好位', alt: '先行', altP: 0.35, rides: 0, note: '2024年オークス・秋華賞(京都・レース上がり36.7の消耗戦を8番手から)の二冠馬。【近況】5戦続けて馬券外。新潟記念8着はスローで「追ってもブレーキがかかる感じ」、中山記念5着【11/10評価】ハービンジャー産駒で字面は悪くないが最近イマイチ。馬体は悪くなく、精神面の問題か' },
+  { gate: 15, id: 16, vol: 1.15, name: 'ラフターラインズ', cond: 'A', blood: 'A', bg: 1, bw: 1, sa: '牝3', kg: 54, jockey: '武豊', sire: 'アルアイン', abil: 82.4, form: 1, kick: 85, stamina: 80, kyoto: 70, dist: 84, heavy: 74, l3: 34.2, l3w: 0.9, strat: '差し', alt: '追込', altP: 0.30, rides: 0, note: 'オークス3着(2人気・13番手から上がり33.3)、フローラS1着(上がり32.8・レース上がり33.6の瞬発力勝負)。武豊と初コンビ。【近況】蹄の熱感で毎日王冠を見送り、オークス以来の休み明け【11/10評価】不良馬場の追い切りでも軸がぶれず体幹が素晴らしく、道悪もこなせそう。上がり目あり。アルアイン産駒（キレ不足）を薔薇一族の母系が補う。良馬場の方が良い' },
+  { gate: 16, id: 1,  name: 'アクアヴァーナル', cond: 'B', blood: 'S', bg: 1, bw: 0,   sa: '牝5', kg: 56, jockey: '松山弘平',   sire: 'エピファネイア',   abil: 85.5, form: 1,   kick: 70, stamina: 90, kyoto: 86, dist: 80, heavy: 76, l3: 35.3, l3w: 0.9, strat: '先行', alt: '好位',  altP: 0.40, rides: 4, note: '京都大賞典3着(2人気・牡馬相手・稍重・レース上がり34.9)、天皇賞春4着、阪神大賞典2着(レコードの持久戦)。京都外回り2400で2勝。瞬発力勝負は不向き。【近況】力をつけて上昇中【11/10評価】雨は苦にしないが晴れた方が良い。距離不足の印象もあるが力は上位' },
+  { gate: 17, id: 6,  name: 'ケリフレッドアスク', cond: 'C', blood: 'B', bg: 0, bw: 1, sa: '牝4', kg: 56, jockey: '北村友一',   sire: 'ドゥラメンテ',               abil: 81.5, form: -7,  kick: 72, stamina: 80, kyoto: 70, dist: 80, heavy: 72, l3: 35.2, l3w: 1.0, strat: '好位', alt: '先行',  altP: 0.30, rides: 0, note: '2025年紫苑S勝ち馬。昨年のエリ女は4番手から14着。【近況】クイーンS8着、新潟牝馬S(L)5着(2人気)と頭打ち【11/10評価】展開は向いていたが前走が良くなく、夏から比べて調子は落ちていそう' },
+  { gate: 18, id: 7,  name: 'コガネノソラ', cond: 'S', blood: 'S', bg: 0, bw: 1,       sa: '牝5', kg: 56, jockey: '丹内祐次',   sire: 'ゴールドシップ',   abil: 82.6, form: 0,   kick: 74, stamina: 82, kyoto: 66, dist: 72, heavy: 86, l3: 35.2, l3w: 1.0, strat: '先行', alt: '好位',  altP: 0.30, rides: 4, note: 'クイーンS2着、府中牝馬S5着、2024年秋華賞9着(京都)。1800mで5-0-1-1の距離巧者で、2200mは長い可能性【11/10評価】ゴールドシップ産駒で雨が降れば良い。距離延長ローテはプラス。調教は完成した動き' },
+  // 出走しない（エセルフリーダは回避、マリアイリダータは除外）
+  { gate: null, id: 19, scratch: true, name: 'エセルフリーダ', cond: 'B', blood: 'B', bg: 1, bw: 0, sa: '牝5', kg: 56, jockey: '武藤雅', sire: 'キタサンブラック', abil: 77, form: 0, kick: 78, stamina: 80, kyoto: 70, dist: 78, heavy: 72, strat: '好位', alt: '差し', altP: 0.35, rides: 3, note: '【回避予定】賞金順では出走圏（14番目）。中山牝馬S1着。出走する場合はヴーレヴーが補欠に回るので、ヴーレヴーのチェックを外してください。数値は仮' },
+  { gate: null, id: 20, scratch: true, name: 'マリアイリダータ', cond: 'B', blood: 'B', bg: 0, bw: 1, sa: '牝4', kg: 56, jockey: '坂井瑠星', sire: 'ドゥラメンテ', abil: 74, form: 0, kick: 78, stamina: 78, kyoto: 70, dist: 78, heavy: 70, strat: '差し', alt: '好位', altP: 0.30, rides: 1, note: '【補欠1番手】賞金順で19番目（エセルフリーダ回避後）。出走馬に欠員が出たら繰り上がり。戦績は未確認で、数値は仮' },
+].map(h => Object.assign({ cond: 'B', tb: 'B', blood: 'B', blood2: 'B', bg: 0, bw: 0, odds: null }, h));
+
+// 騎手：skill=腕（2026年の勝率・複勝率から） big=勝負強さ（重賞の通算複勝率・今年のG1勝利・夏の重賞成績・回収率＝人気以上に走らせるか） kyoto=京都芝の成績 mid=中長距離(1800〜2400m)の得意度 type=得意な乗り方 kisaku=奇策（大逃げ・追込・まくり）に出る確率
+G.ERIZA_JOCKEYS = {
+  'C.ルメール':   { skill: 98, big: 90, kyoto: 92, mid: 96, type: '万能', kisaku: 0.02, memo: '2026年 147勝 勝率29.7% 複勝61.2%（単回79・複回88）。重賞通算 複勝44.4%。今年G1 3勝（フェブラリーS・高松宮記念・ヴィクトリアマイル）' },
+  '川田将雅':     { skill: 90, big: 77, kyoto: 95, mid: 95, type: '好位', kisaku: 0.01, memo: '2026年 91勝 勝率21.1% 複勝54.4%（単回69・複回84）。重賞通算 複勝35.1%。今年G1未勝利・夏の重賞0-0-0-7だが、直近の菊花賞（京都）はバステール8番人気でハナ差2着、天皇賞秋はネブラディスク8番人気で2着と、秋の大舞台で人気薄を連続して2着に持ってきている' },
+  '武豊':         { skill: 81, big: 90, kyoto: 97, mid: 90, type: '万能', kisaku: 0.06, memo: '2026年 66勝 勝率13.9% 複勝38.8%（単回72・複回81）。重賞通算 複勝38.8%。今年G1 3勝（安田記念・宝塚記念・菊花賞）、夏の重賞3勝。淀を知り尽くす' },
+  '岩田望来':     { skill: 85, big: 77, kyoto: 88, mid: 86, type: '好位', kisaku: 0.03, memo: '2026年 124勝 勝率18.8% 複勝43.1%（単回99・複回92＝人気以上に走らせる）。今年G1 1勝（スプリンターズS）、夏の重賞3勝' },
+  'C.デムーロ':   { skill: 85, big: 69, kyoto: 82, mid: 86, type: '差し', kisaku: 0.05, memo: '短期免許（10/31〜12/27）。JRA通算1522戦263勝（17.3%）、重賞17勝・重賞通算 複勝33.8%。クイーンズウォークは初騎乗' },
+  'T.マーカンド': { skill: 85, big: 70, kyoto: 80, mid: 88, type: '好位', kisaku: 0.04, memo: '短期免許（11月〜12/29、5年連続の来日）。今年のJRA騎乗データがないため、腕と勝負強さは推定。チェルヴィニアは初騎乗' },
+  '松山弘平':     { skill: 83, big: 81, kyoto: 88, mid: 84, type: '先行', kisaku: 0.03, memo: '2026年 120勝 勝率16.7% 複勝40.1%（単回86・複回84）。今年G1 3勝（桜花賞・皐月賞・ダービー）、夏の重賞2勝。逃げ・先行が多い。アクアヴァーナルの主戦' },
+  '西村淳也':     { skill: 79, big: 61, kyoto: 84, mid: 82, type: '先行', kisaku: 0.04, memo: '2026年 87勝 勝率12.9% 複勝36.2%（単回77・複回82）。重賞通算 複勝19.8%、夏の重賞は0-0-1-7' },
+  '北村友一':     { skill: 75, big: 73, kyoto: 84, mid: 84, type: '好位', kisaku: 0.04, memo: '2026年 50勝 勝率9.3% 複勝29.9%。今年G1 2勝（大阪杯・天皇賞春をクロワデュノールで）、夏の重賞は2-2-1-2と勝負強い' },
+  '浜中俊':       { skill: 75, big: 66, kyoto: 84, mid: 78, type: '逃げ', kisaku: 0.06, memo: '2026年 36勝 勝率10.2% 複勝28.5%（単回91・複回86）。セキトバイーストで逃げて府中牝馬S連覇' },
+  '池添謙一':     { skill: 70, big: 60, kyoto: 82, mid: 82, type: '差し', kisaku: 0.08, memo: '2026年 26勝 勝率7.2% 複勝20.3%（単回75・複回73）。重賞通算100勝の大舞台型だが、今年は夏の重賞0-0-0-8と不振' },
+  '三浦皇成':     { skill: 75, big: 59, kyoto: 70, mid: 78, type: '差し', kisaku: 0.04, memo: '2026年 52勝 勝率10.4% 複勝29.1%（単回90）。重賞通算 複勝13.6%と大舞台は苦手。関東の騎手で京都は少なめ' },
+  '吉田隼人':     { skill: 72, big: 63, kyoto: 76, mid: 80, type: '先行', kisaku: 0.05, memo: '2026年 24勝 勝率7.9% 複勝23.9%（単回96・複回92＝人気以上に走らせる）。ヴーレヴーで巴賞1着・オールカマー3着' },
+  '津村明秀':     { skill: 76, big: 61, kyoto: 70, mid: 78, type: '先行', kisaku: 0.05, memo: '2026年 58勝 勝率10.1% 複勝31.3%。重賞通算 複勝17.9%' },
+  '丹内祐次':     { skill: 74, big: 57, kyoto: 68, mid: 78, type: '先行', kisaku: 0.06, memo: '2026年 71勝 勝率8.9% 複勝29.0%（単回70）。関東の騎手。コガネノソラの主戦。重賞成績は推定' },
+  '荻野極':       { skill: 79, big: 62, kyoto: 80, mid: 76, type: '先行', kisaku: 0.05, memo: '2026年 64勝 勝率13.1% 複勝35.7%（単回100・複回96＝人気以上に走らせる）。今年大きく勝ち星を伸ばした。重賞成績は推定' },
+  '松若風馬':     { skill: 71, big: 65, kyoto: 80, mid: 76, type: '逃げ', kisaku: 0.08, memo: '2026年 46勝 勝率7.3% 複勝23.4%（単回101・複回91＝人気以上に走らせる）。レーゼドラマで小倉記念3着' },
+  '今村聖奈':     { skill: 68, big: 58, kyoto: 80, mid: 74, type: '差し', kisaku: 0.05, memo: '2026年 15勝 勝率4.7% 複勝18.4%（単回69）。ジュウリョクピエロでオークス制覇（JRA女性騎手初のG1）。重賞成績は推定' },
+  '坂井瑠星':     { skill: 83, big: 64, kyoto: 86, mid: 86, type: '先行', kisaku: 0.05, memo: '乗り替わり用。2026年 89勝 勝率16.7% 複勝40.0%。今年G1未勝利' },
+  '戸崎圭太':     { skill: 81, big: 74, kyoto: 78, mid: 88, type: '好位', kisaku: 0.02, memo: '乗り替わり用。2026年 70勝 勝率12.8% 複勝42.2%。今年G1 2勝（秋華賞・天皇賞秋）' },
+  '横山和生':     { skill: 79, big: 66, kyoto: 76, mid: 84, type: '先行', kisaku: 0.06, memo: '乗り替わり用。2026年 73勝 勝率14.3% 複勝33.8%（単回92）' },
+  '武藤雅':       { skill: 70, big: 58, kyoto: 70, mid: 76, type: '好位', kisaku: 0.05, memo: 'エセルフリーダが出走した場合の騎手（数値は推定）' },
+  '鮫島克駿':     { skill: 73, big: 61, kyoto: 82, mid: 80, type: '好位', kisaku: 0.04, memo: '乗り替わり用。2026年 48勝 勝率8.4% 複勝25.8%' },
+};
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function () {
+  const E = window.ErizaEngine;
+  const BASE_H = window.ERIZA_HORSES;
+  const BASE_J = window.ERIZA_JOCKEYS;
+  const KEY = 'eriza2026-sim-v1';
+  const $ = (id) => document.getElementById(id);
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  const DEFAULTS = {
+    ground: 'good', bias: 'flat', pace: 'mid', turf: 'std', n: 3000, speed: 8, ver: 8,
+    weights: { kyoto: 1, dist: 1, jockey: 1, kisaku: 1, cond: 1, tb: 1, blood: 1, blood2: 1, bloodG: 1, temper: 1 }, noise: 0.40, trouble: 0.04,
+    preset: 'std', gateMode: 'fixed',
+  };
+  function fresh() { return Object.assign(clone(DEFAULTS), { horses: clone(BASE_H), jockeys: clone(BASE_J) }); }
+  let S = fresh();
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (saved && Array.isArray(saved.horses)) {
+      if (!(saved.ver >= DEFAULTS.ver)) {
+        // 初期値を作り直したときは、それ以前に保存した設定は使わない（回数と再生速度だけ引き継ぐ）
+        if (saved.n) S.n = saved.n;
+        if (saved.speed) S.speed = saved.speed;
+      } else {
+        const base = fresh();
+        Object.keys(DEFAULTS).forEach(k => { if (saved[k] !== undefined) S[k] = saved[k]; });
+        S.weights = Object.assign(clone(DEFAULTS.weights), S.weights);
+        S.horses = base.horses.map(b => { const sv = saved.horses.find(x => x.id === b.id); return sv ? Object.assign(b, sv, { name: b.name, note: b.note, sa: b.sa, sire: b.sire }) : b; });
+        S.jockeys = Object.assign(base.jockeys, saved.jockeys || {});
+        Object.keys(base.jockeys).forEach(k => { S.jockeys[k].memo = BASE_J[k].memo; });
+      }
+    }
+  } catch (e) { /* storage unavailable */ }
+  if (![1000, 3000, 10000, 30000].includes(S.n)) S.n = 3000;
+  function save() {
+    try {
+      const o = {}; Object.keys(DEFAULTS).forEach(k => { o[k] = S[k]; });
+      o.horses = S.horses; o.jockeys = S.jockeys;
+      localStorage.setItem(KEY, JSON.stringify(o));
+    } catch (e) { /* ignore */ }
+  }
+
+  const horseById = (id) => S.horses.find(h => h.id === id);
+  const runners = () => S.horses.filter(h => !h.scratch);
+  const pct = (x) => (x * 100).toFixed(1);
+  const condLabel = () => `${E.GROUND[S.ground].label}・${E.TURF[S.turf].label}・${E.BIAS[S.bias].label}・${E.PACE[S.pace].label}`;
+  const cfgOf = (over) => Object.assign({ ground: S.ground, turf: S.turf, pace: S.pace, bias: S.bias, noise: S.noise, trouble: S.trouble, weights: S.weights, gateMode: gatesValid() ? S.gateMode : 'random' }, over || {});
+  const chip = (no, waku) => `<span class="num w${waku}">${no}</span>`;
+
+  // ---------- 枠順 ----------
+  function gateCheck() {
+    const list = runners();
+    const gates = list.map(h => h.gate);
+    if (gates.some(g => !(g >= 1 && g <= 18))) return { ok: false, msg: `馬番が入っていない馬がいます（${list.filter(h => !(h.gate >= 1 && h.gate <= 18)).length}頭）` };
+    if (new Set(gates).size !== gates.length) return { ok: false, msg: '同じ馬番が重なっています' };
+    return { ok: true, msg: `${list.length}頭の馬番がそろっています` };
+  }
+  function gatesValid() { return gateCheck().ok; }
+  function fixedMode() { return S.gateMode === 'fixed' && gatesValid(); }
+  function wakuMap() {
+    const list = runners().slice().sort((a, b) => a.gate - b.gate);
+    const m = {}; list.forEach((h, i) => { m[h.id] = E.wakuOf(i + 1, list.length); });
+    return m;
+  }
+  // 表で使う馬のチップ：枠順確定なら馬番、未確定なら登録番号（点線）
+  function hChip(h) {
+    if (fixedMode()) return chip(h.gate, wakuMap()[h.id]);
+    return `<span class="num w0" title="登録番号（枠順未確定）">${h.id}</span>`;
+  }
+  function syncGateState() {
+    const el = $('gateState');
+    if (fixedMode()) { el.textContent = '枠順：確定（入力した馬番）'; el.classList.add('on'); }
+    else { el.textContent = S.gateMode === 'fixed' ? '枠順：入力が未完成のためランダム' : '枠順：未確定（毎回ランダム）'; el.classList.remove('on'); }
+  }
+
+  // ---------- 噛み合い ----------
+  function fitOf(h) {
+    const j = S.jockeys[h.jockey]; if (!j) return { score: 0, label: '—', cls: '' };
+    const sc = E.fitScore(j.type, h.strat) + E.rideScore(h.rides || 0);
+    if (sc >= 1.2) return { score: sc, label: '◎ 噛み合う', cls: 'g' };
+    if (sc >= 0.4) return { score: sc, label: '○ まずまず', cls: 'g' };
+    if (sc >= -0.2) return { score: sc, label: '△ 普通', cls: '' };
+    return { score: sc, label: '× 合わない', cls: 'b' };
+  }
+
+  // ---------- セグメント ----------
+  function bindSeg(id, key, cast) {
+    const el = $(id);
+    const sync = () => el.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(String(S[key]) === b.dataset.v)));
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      S[key] = cast ? cast(b.dataset.v) : b.dataset.v;
+      if (key !== 'n' && key !== 'speed') { S.preset = null; syncPresets(); }
+      sync(); save(); updateHud(); refreshRatings();
+    });
+    sync();
+    return sync;
+  }
+  const syncs = [bindSeg('segGround', 'ground'), bindSeg('segBias', 'bias'), bindSeg('segPace', 'pace'), bindSeg('segTurf', 'turf'), bindSeg('segN', 'n', Number), bindSeg('segSpeed', 'speed', Number)];
+  const PRESETS = {
+    std:   { ground: 'good', turf: 'std',   bias: 'flat',  pace: 'mid' },
+    tough: { ground: 'good', turf: 'tough', bias: 'flat',  pace: 'mid' },
+    front: { ground: 'good', turf: 'std',   bias: 'front', pace: 'slow' },
+    outer: { ground: 'good', turf: 'std',   bias: 'outer', pace: 'mid' },
+    rain:  { ground: 'soft', turf: 'std',   bias: 'flat',  pace: 'mid' },
+  };
+  function syncPresets() { document.querySelectorAll('#presets .preset').forEach(b => b.setAttribute('aria-pressed', String(S.preset === b.dataset.p))); }
+  $('presets').addEventListener('click', (e) => {
+    const b = e.target.closest('.preset'); if (!b) return;
+    Object.assign(S, PRESETS[b.dataset.p]); S.preset = b.dataset.p;
+    syncs.forEach(f => f()); syncPresets(); save(); updateHud(); refreshRatings();
+  });
+  syncPresets();
+
+  // ---------- タブ ----------
+  const TABS = ['last', 'stats', 'cmp', 'edit', 'jock', 'gate', 'log'];
+  function showTab(t) {
+    TABS.forEach(x => {
+      $('p-' + x).hidden = x !== t;
+      document.querySelector(`[data-tab="${x}"]`).setAttribute('aria-selected', String(x === t));
+    });
+  }
+  document.querySelector('.tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
+
+  // ---------- トラック描画（京都外回り・右回り） ----------
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const T = E.TRACK;
+  let G = null, staticLayer = null;
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function layout() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const W = cv.clientWidth || 800;
+    const pad = 12, band = Math.max(26, W * 0.055);
+    // 下の直線（ゴール後80m＋直線404m）と向正面を同じ長さで描く
+    const Dm = T.home + T.fe, Rm = E.R;
+    const k = (W - 2 * pad - 2 * band - 10) / (Dm + 2 * Rm);
+    const D = Dm * k, Rk = Rm * k;
+    const cx = W / 2, cy = pad + 18 + band + Rk;
+    const H = Math.round(cy + Rk + band + 4 + 30 + pad);
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    cv.style.height = H + 'px';
+    G = { W, H, dpr, k, D, Rk, band, cx, cy, xL: cx - D / 2, xR: cx + D / 2, hr: Math.max(6.5, Math.min(11, W / 66)) };
+    G.finishX = G.xL + (T.fe / Dm) * D;
+    drawStatic();
+  }
+  // s: コース座標（ゴール=0、進行方向）、off: 内ラチからの外側距離(px)。右回り：下の直線を右から左へ走ってゴール
+  function ptS(s, off) {
+    const L = T.L; let x = ((s % L) + L) % L; const r = G.Rk + off;
+    if (x < T.fe) return [G.finishX - x / T.fe * (G.finishX - G.xL), G.cy + r];
+    x -= T.fe;
+    if (x < T.C) { const th = Math.PI / 2 + (x / T.C) * Math.PI; return [G.xL + r * Math.cos(th), G.cy + r * Math.sin(th)]; }
+    x -= T.C;
+    if (x < T.Sb) return [G.xL + (x / T.Sb) * G.D, G.cy - r];
+    x -= T.Sb;
+    if (x < T.C) { const th = -Math.PI / 2 + (x / T.C) * Math.PI; return [G.xR + r * Math.cos(th), G.cy + r * Math.sin(th)]; }
+    x -= T.C;
+    return [G.xR - (x / T.home) * (G.xR - G.finishX), G.cy + r];
+  }
+  // 走った距離 d → 画面座標
+  function ptD(d, off) { return ptS(E.courseS(d), off); }
+  function stadium(c, r) {
+    c.beginPath();
+    c.moveTo(G.xL, G.cy - r); c.lineTo(G.xR, G.cy - r);
+    c.arc(G.xR, G.cy, r, -Math.PI / 2, Math.PI / 2);
+    c.lineTo(G.xL, G.cy + r);
+    c.arc(G.xL, G.cy, r, Math.PI / 2, Math.PI * 1.5);
+    c.closePath();
+  }
+  // 残り距離 rem の区間を、ラチの外側に沿って描く
+  function remPath(c, r0, r1, off) {
+    c.beginPath();
+    for (let rem = r0; rem >= r1; rem -= 10) { const q = ptS((T.L - rem + T.L) % T.L, off); if (rem === r0) c.moveTo(q[0], q[1]); else c.lineTo(q[0], q[1]); }
+  }
+  function drawStatic() {
+    staticLayer = document.createElement('canvas');
+    staticLayer.width = cv.width; staticLayer.height = cv.height;
+    const c = staticLayer.getContext('2d');
+    c.scale(G.dpr, G.dpr);
+    c.fillStyle = css('--surface'); c.fillRect(0, 0, G.W, G.H);
+    const outer = G.Rk + G.band + 4;
+    stadium(c, outer); c.fillStyle = css('--turf'); c.fill();
+    c.save(); stadium(c, outer); c.clip();
+    c.strokeStyle = css('--turf-edge'); c.lineWidth = 1; c.globalAlpha = .35;
+    for (let i = 1; i < 4; i++) { stadium(c, G.Rk + G.band * i / 4); c.stroke(); }
+    c.restore();
+    stadium(c, G.Rk - 2); c.fillStyle = css('--infield'); c.fill();
+    // 内馬場の池（京都名物）
+    c.beginPath(); c.ellipse(G.cx + G.D * 0.05, G.cy - G.Rk * 0.05, G.D * 0.36, G.Rk * 0.42, 0, 0, Math.PI * 2); c.fillStyle = css('--pond'); c.fill();
+    c.beginPath(); c.ellipse(G.cx - G.D * 0.08, G.cy, G.D * 0.05, G.Rk * 0.1, 0, 0, Math.PI * 2); c.fillStyle = css('--infield'); c.fill();
+    // ラチ
+    c.strokeStyle = css('--rail'); c.lineWidth = 1.6;
+    stadium(c, G.Rk - 1); c.stroke(); stadium(c, outer); c.stroke();
+    const fs = (m) => Math.max(10, G.W / m);
+    // 淀の坂（内馬場側に表示。上り＝実線、下り＝点線）
+    {
+      const off = -9;
+      c.strokeStyle = css('--accent'); c.lineWidth = 3; c.lineCap = 'round';
+      remPath(c, E.SLOPE_UP[0], E.SLOPE_UP[1], off); c.stroke();
+      c.setLineDash([5, 5]); remPath(c, E.SLOPE_DOWN[0], E.SLOPE_DOWN[1], off); c.stroke(); c.setLineDash([]);
+      c.lineCap = 'butt';
+      c.fillStyle = css('--accent'); c.font = `700 ${fs(70)}px ${css('--f-body')}`; c.textAlign = 'center';
+      const u = ptS((T.L - (E.SLOPE_UP[0] + E.SLOPE_UP[1]) / 2) % T.L, off - 16);
+      c.fillText(G.W < 560 ? '坂' : '淀の坂 上り', u[0] + (G.W < 560 ? 0 : -8), u[1] + (G.W < 560 ? 14 : 4));
+      const dn = ptS((T.L - 600) % T.L, off - 12); c.textAlign = 'right'; c.fillText('下り', dn[0] - 4, dn[1] + 4);
+    }
+    // ゴール
+    {
+      const a = ptS(0, -3), b = ptS(0, G.band + 6);
+      c.strokeStyle = css('--accent-fill'); c.lineWidth = 2.4; c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+      c.fillStyle = css('--ink'); c.font = `700 ${fs(64)}px ${css('--f-body')}`; c.textAlign = 'center';
+      c.fillText('ゴール', a[0], b[1] + 14);
+    }
+    // スタート（スタンド前）
+    {
+      const a = ptS(T.start, -3), b = ptS(T.start, G.band + 6);
+      c.strokeStyle = css('--ink'); c.lineWidth = 2.2; c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+      c.fillStyle = css('--ink'); c.font = `700 ${fs(66)}px ${css('--f-body')}`; c.textAlign = 'center';
+      c.fillText('スタート', a[0], b[1] + 14);
+    }
+    // 残りハロン棒
+    c.font = `600 ${fs(80)}px ${css('--f-num')}`; c.fillStyle = css('--muted'); c.textAlign = 'center';
+    [1000, 800, 600, 400, 200].forEach(rem => {
+      const s = (T.L - rem) % T.L; const a = ptS(s, -2), b = ptS(s, -7), q = ptS(s, -17);
+      c.strokeStyle = css('--muted'); c.lineWidth = 1.2; c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+      c.fillText(String(rem), q[0], q[1] + 3);
+    });
+    // コーナー名
+    c.font = `500 ${fs(72)}px ${css('--f-body')}`; c.fillStyle = css('--muted'); c.textAlign = 'center';
+    const cl = (s, t, dx, dy) => { const q = ptS(s, G.band + 4); c.fillText(t, q[0] + dx, q[1] + dy); };
+    cl(T.fe + T.C * 0.18, '1角', -16, 8); cl(T.fe + T.C * 0.82, '2角', -16, -2);
+    cl(T.fe + T.C + T.Sb + T.C * 0.18, '3角', 16, -2); cl(T.fe + T.C + T.Sb + T.C * 0.82, '4角', 16, 8);
+    c.fillStyle = css('--muted'); c.font = `500 ${fs(74)}px ${css('--f-body')}`;
+    if (G.W >= 560) {
+      c.fillText('京都 芝2200m（外回り・右回り）', G.cx - G.D * 0.18, G.cy - G.Rk * 0.55);
+      c.fillText('← 直線 398.7m（Bコース・平坦）', G.cx + G.D * 0.12, G.cy + G.Rk * 0.78);
+    }
+  }
+
+  let race = null, raf = 0, lastTs = 0, acc = 0, doneAt = 0, lastOrderUpd = 0;
+  const WAKU_COL = ['', '#FFFFFF', '#1B1B1B', '#D6262F', '#1F5CC4', '#F2D400', '#1E9A4B', '#F28C1E', '#F37FB1'];
+  const WAKU_TXT = ['', '#111', '#fff', '#fff', '#fff', '#111', '#fff', '#111', '#111'];
+  function drawHorse(x, y, no, waku, hit) {
+    const r = G.hr;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = waku ? WAKU_COL[waku] : css('--surface'); ctx.fill();
+    ctx.lineWidth = hit ? 2.4 : 1; ctx.strokeStyle = hit ? css('--warn') : 'rgba(0,0,0,.55)'; ctx.stroke();
+    ctx.fillStyle = waku ? WAKU_TXT[waku] : css('--ink'); ctx.font = `700 ${Math.round(r * 1.3)}px ${css('--f-num')}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(String(no), x, y + 0.5); ctx.textBaseline = 'alphabetic';
+  }
+  function laneOff(lane) { return 4 + Math.max(0, Math.min(1, lane)) * (G.band - 6); }
+  function drawFrame() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(staticLayer, 0, 0);
+    ctx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
+    if (!race) {
+      const list = runners();
+      const fm = fixedMode(), wm = fm ? wakuMap() : {};
+      const ordered = fm ? list.slice().sort((a, b) => a.gate - b.gate) : list;
+      ordered.forEach((h, i) => {
+        const [x, y] = ptD(-2, laneOff(0.02 + i / Math.max(1, ordered.length - 1) * 0.55));
+        drawHorse(x, y, fm ? h.gate : h.id, fm ? wm[h.id] : 0);
+      });
+      return;
+    }
+    let leadD = 0;
+    for (const r of race.runners) if (!r.finished && r.d > leadD) leadD = r.d;
+    if (race.order.length) leadD = E.DIST;
+    const rs = race.runners.slice().sort((a, b) => b.lane - a.lane);
+    for (const r of rs) {
+      // 見やすさのため先頭からの差を1.6倍に広げて描く
+      let d = Math.max(0, leadD - (leadD - r.d) * 1.6);
+      if (r.finished) d = E.DIST + Math.min(120, Math.max(0, race.t - r.time) * 9);
+      const [x, y] = ptD(d, laneOff(r.lane));
+      drawHorse(x, y, r.no, r.waku, r.flag && r.troubleLeft > 0);
+    }
+  }
+  function fmtTime(t) { const m = Math.floor(t / 60), s = t - m * 60; return `${m}:${s.toFixed(1).padStart(4, '0')}`; }
+  function updateHud() {
+    $('hudCond').textContent = condLabel();
+    syncGateState();
+    if (!race) { $('hudRem').textContent = 'スタート前'; $('hudTime').textContent = '0:00.0'; return; }
+    const lead = race.runners.reduce((m, r) => Math.max(m, r.d), 0);
+    $('hudRem').textContent = race.done || lead >= E.DIST ? 'ゴール' : `残り ${Math.max(0, Math.round(E.DIST - lead)).toLocaleString()}m`;
+    $('hudTime').textContent = fmtTime(race.order.length ? race.order[0].time : race.t);
+  }
+  const short = (name) => name.length > 5 ? name.slice(0, 4) : name;
+  function updateOrder() {
+    const el = $('order');
+    let items;
+    if (!race) {
+      const fm = fixedMode(), wm = fm ? wakuMap() : {};
+      const list = fm ? runners().slice().sort((a, b) => a.gate - b.gate) : runners();
+      items = list.map(h => `<span class="it">${fm ? chip(h.gate, wm[h.id]) : `<span class="num w0">${h.id}</span>`}${short(h.name)}</span>`);
+      el.innerHTML = `<span class="lab">${fm ? '馬番' : '登録順'}</span>` + items.join('');
+      return;
+    }
+    const fin = race.order.slice();
+    const run = race.runners.filter(r => !r.finished).sort((a, b) => b.d - a.d);
+    items = fin.concat(run).map(r => `<span class="it">${chip(r.no, r.waku)}${short(r.h.name)}</span>`);
+    el.innerHTML = `<span class="lab">${race.done ? '着順' : '隊列'}</span>` + items.join('');
+  }
+  function loop(ts) {
+    if (!lastTs) lastTs = ts;
+    const fdt = Math.min(0.05, (ts - lastTs) / 1000); lastTs = ts;
+    if (race && !race.done) {
+      acc += fdt * S.speed;
+      while (acc >= 0.1 && !race.done) { E.step(race, 0.1); acc -= 0.1; }
+      if (race.done) { doneAt = ts; finishSingle(); }
+    } else if (race) { race.t += fdt * S.speed; }
+    drawFrame();
+    if (ts - lastOrderUpd > 160) { updateOrder(); updateHud(); lastOrderUpd = ts; }
+    if (race && race.done && ts - doneAt > 2600) { raf = 0; $('btnPlay').disabled = false; updateOrder(); return; }
+    raf = requestAnimationFrame(loop);
+  }
+  function playOne() {
+    const seed = (Math.random() * 2 ** 31) >>> 0;
+    race = E.makeRace(S.horses, S.jockeys, cfgOf(), seed);
+    acc = 0; lastTs = 0;
+    $('seedLab').textContent = `レース #${seed.toString(36).toUpperCase()}${race.fixed ? '' : '・馬番はランダム'}`;
+    $('btnPlay').disabled = true;
+    if (!raf) raf = requestAnimationFrame(loop);
+  }
+  function finishSingle() {
+    const ord = race.order;
+    const len = (dt) => {
+      const l = dt / 0.17;
+      if (l < 0.05) return 'ハナ'; if (l < 0.15) return 'アタマ'; if (l < 0.3) return 'クビ';
+      if (l < 0.6) return '1/2'; if (l < 0.85) return '3/4';
+      if (l >= 10) return '大差';
+      const n = Math.floor(l), f = l - n; return n + (f < 0.4 ? '' : f < 0.65 ? '1/2' : '3/4');
+    };
+    const rows = ord.map((r, i) => {
+      const h = r.h;
+      const mg = i === 0 ? fmtTime(r.time) : len(r.time - ord[i - 1].time);
+      const flags = (r.how === '奇策' ? '<span class="flag k">奇策</span>' : '') + (r.flag ? '<span class="flag">不利</span>' : '');
+      return `<div class="last-row"><span class="pl">${i + 1}</span>${chip(r.no, r.waku)}<span>${esc(h.name)}${flags}<br><span class="sub">${esc(h.jockey)}・${r.strat}</span></span><span class="mg">${mg}</span></div>`;
+    }).join('');
+    $('p-last').innerHTML = `<div class="hint">${condLabel()} / 勝ちタイム ${fmtTime(ord[0].time)}${race.fixed ? '' : ' / 馬番はこのレースだけのランダム'}</div><div class="last">${rows}</div>`;
+    showTab('last');
+    addLog({ kind: 'one', cond: condLabel(), top: ord.slice(0, 3).map((r, k) => ({ html: chip(r.no, r.waku), txt: `${k + 1}着 ${short(r.h.name)}` })) });
+  }
+  $('btnPlay').addEventListener('click', playOne);
+
+  // ---------- 一括 ----------
+  let busy = false;
+  function runBatch(cfg, n, onProg) {
+    return new Promise((resolve) => {
+      const st = new Map();
+      runners().forEach(h => st.set(h.id, { id: h.id, w: 0, t2: 0, t3: 0, t5: 0, sum: 0, strat: {} }));
+      const byStrat = {}, byWaku = {};
+      let i = 0; const base = (Math.random() * 2 ** 31) >>> 0;
+      const t0 = performance.now();
+      const chunk = () => {
+        // 画面が固まらないよう、約30msずつ区切って計算する
+        const until = performance.now() + 30;
+        for (; i < n && (i % 8 !== 0 || performance.now() < until || i === 0); i++) {
+          if (cancelReq) break;
+          const ord = E.runOne(S.horses, S.jockeys, cfg, base + i * 7919, 0.5).order;
+          ord.forEach((r, k) => {
+            const s = st.get(r.h.id); if (k === 0) s.w++; if (k < 2) s.t2++; if (k < 3) s.t3++; if (k < 5) s.t5++; s.sum += k + 1;
+            const ps = s.strat[r.strat] = s.strat[r.strat] || { n: 0, w: 0 }; ps.n++; if (k === 0) ps.w++;
+            const bs = byStrat[r.strat] = byStrat[r.strat] || { n: 0, w: 0, t3: 0 }; bs.n++; if (k === 0) bs.w++; if (k < 3) bs.t3++;
+            const bw = byWaku[r.waku] = byWaku[r.waku] || { n: 0, w: 0, t3: 0 }; bw.n++; if (k === 0) bw.w++; if (k < 3) bw.t3++;
+          });
+        }
+        onProg(i / n);
+        if (i < n && !cancelReq) { setTimeout(chunk, 0); return; }
+        resolve({ n: i, asked: n, cancelled: i < n, ms: performance.now() - t0, rows: Array.from(st.values()), byStrat, byWaku, fixed: cfg.gateMode === 'fixed' });
+      };
+      chunk();
+    });
+  }
+  let cancelReq = false;
+  function setBusy(b) { busy = b; cancelReq = false; $('btnBatch').disabled = b; $('btnCompare').disabled = b; $('btnCancel').hidden = !b; }
+  $('btnCancel').addEventListener('click', () => { cancelReq = true; });
+  let lastStats = null;
+  let quiet = false;
+  $('btnBatch').addEventListener('click', async () => {
+    if (busy) return; setBusy(true);
+    const res = await runBatch(cfgOf(), S.n, p => { $('prog').style.width = (p * 100).toFixed(1) + '%'; });
+    if (res.n === 0) { setBusy(false); return; }
+    res.cond = condLabel(); lastStats = res;
+    renderStats(); if (!quiet) showTab('stats'); quiet = false; setBusy(false);
+    const top = res.rows.slice().sort((a, b) => b.w - a.w).slice(0, 3);
+    addLog({ kind: 'batch', cond: `${res.cond}・${res.n}回${res.fixed ? '・確定枠' : ''}`, top: top.map(r => ({ html: hChip(horseById(r.id)), txt: `${short(horseById(r.id).name)} ${pct(r.w / res.n)}%` })) });
+  });
+
+  const MARKS = ['◎', '○', '▲', '△', '△'];
+  function horseCell(h, mark) {
+    const f = fitOf(h);
+    return `<div class="horse">${mark !== undefined ? `<span class="mark">${mark}</span>` : ''}${hChip(h)}<span><span class="nm">${esc(h.name)}</span><br><span class="tags">${esc(h.jockey)}・${h.strat}${h.alt && h.altP > 0 ? `(${h.alt}${Math.round(h.altP * 100)}%)` : ''}<br>${h.form ? `近況${h.form > 0 ? '+' : '−'}${Math.abs(h.form)}・` : ''}${h.l3 ? `得意な上がり${h.l3.toFixed(1)}・` : ''}${h.tempP ? `気性${Math.round(h.tempP * 100)}%・` : ''}${h.bg ? '晴血統・' : ''}${h.bw ? '雨血統・' : ''}追切${h.cond}・TB ${h.tb}・血統${h.blood}・血統2 ${h.blood2}</span> <span class="fit ${f.cls}">${f.label.split(' ')[0]}</span></span></div>`;
+  }
+  function renderStats() {
+    const el = $('p-stats');
+    if (!lastStats) { el.innerHTML = `<div class="empty">「一括シミュレーション」を押すと、${condLabel()}で${S.n}回走らせた勝率・連対率・複勝率がここに並びます。</div>`; return; }
+    const n = lastStats.n;
+    const rows = lastStats.rows.slice().sort((a, b) => b.w - a.w || b.t3 - a.t3);
+    const anyOdds = S.horses.some(h => h.odds > 0);
+    const byT3 = rows.slice().sort((a, b) => b.t3 - a.t3);
+    const card = (k, r, v) => { const h = horseById(r.id); return `<div class="sum-card"><span class="k">${k}</span><span class="v">${hChip(h)}${esc(h.name)}<span class="pct">${pct(v / n)}%</span></span></div>`; };
+    const cards = [card('勝率1位', rows[0], rows[0].w), card('複勝率1位', byT3[0], byT3[0].t3), card('勝率2位', rows[1], rows[1].w), card('勝率3位', rows[2], rows[2].w)].join('');
+    const body = rows.map((r, i) => {
+      const h = horseById(r.id);
+      const fair = r.w ? n / r.w : Infinity;
+      const ev = h.odds > 0 ? (r.w / n) * h.odds : null;
+      return `<tr>
+        <td>${horseCell(h, MARKS[i] || '')}</td>
+        <td class="n">${pct(r.w / n)}</td><td class="n">${pct(r.t2 / n)}</td><td class="n">${pct(r.t3 / n)}</td><td class="n dim">${pct((r.t5 || 0) / n)}</td>
+        <td class="n dim">${(r.sum / n).toFixed(1)}</td>
+        <td class="n dim">${isFinite(fair) ? (fair >= 1000 ? '999+' : fair.toFixed(1)) : '—'}</td>
+        ${anyOdds ? `<td class="n ${ev !== null && ev > 1 ? 'best' : 'dim'}">${ev !== null ? ev.toFixed(2) : '—'}</td>` : ''}
+        <td><div class="bar" title="1着/2着/3着"><i style="width:${r.w / n * 100}%"></i><i style="width:${(r.t2 - r.w) / n * 100}%"></i><i style="width:${(r.t3 - r.t2) / n * 100}%"></i></div></td>
+      </tr>`;
+    }).join('');
+    const stratRows = E.STRATS.filter(s => lastStats.byStrat[s]).map(s => { const b = lastStats.byStrat[s]; return `<tr><td>${s}</td><td class="n dim">${b.n}</td><td class="n">${pct(b.w / b.n)}</td><td class="n">${pct(b.t3 / b.n)}</td></tr>`; }).join('');
+    const wakuRows = Object.keys(lastStats.byWaku).sort().map(k => { const b = lastStats.byWaku[k]; return `<tr><td>${chip(k + '枠', k)}</td><td class="n">${pct(b.w / b.n)}</td><td class="n">${pct(b.t3 / b.n)}</td></tr>`; }).join('');
+    const p1 = rows[0].w / n, moe = 1.96 * Math.sqrt(p1 * (1 - p1) / n) * 100;
+    const timing = `計算 ${(lastStats.ms / 1000).toFixed(1)}秒（1レース平均 ${(lastStats.ms / n).toFixed(2)}ms・${lastStats.rows.length}頭×約270ステップ）`;
+    el.innerHTML = `<div class="hint">${lastStats.cond}（想定されるレースの上がり3F 約${E.raceL3(cfgOf()).toFixed(1)}秒）・${n.toLocaleString()}回${lastStats.cancelled ? `（${lastStats.asked.toLocaleString()}回の途中で中止）` : ''}・${lastStats.fixed ? '確定した馬番で' : '馬番は毎回ランダム'}<br>${timing}・勝率の誤差は最大でも ±${moe.toFixed(1)}%（95%）</div>
+      <div class="summary">${cards}</div>
+      <div class="scroll"><table>
+        <thead><tr><th>馬・騎手・作戦</th><th>勝率%</th><th>連対%</th><th>複勝%</th><th>掲示板%</th><th>平均着</th><th>理論オッズ</th>${anyOdds ? '<th>期待値</th>' : ''}<th>1-2-3着</th></tr></thead>
+        <tbody>${body}</tbody></table></div>
+      <div class="mini">
+        <div><p class="sub-h">作戦別（実際に選んだ作戦）</p><div class="scroll"><table><thead><tr><th>作戦</th><th>出走数</th><th>勝率%</th><th>複勝%</th></tr></thead><tbody>${stratRows}</tbody></table></div></div>
+        ${lastStats.fixed ? '' : `<div><p class="sub-h">枠別（ランダム枠の集計）</p><div class="scroll"><table><thead><tr><th>枠</th><th>勝率%</th><th>複勝%</th></tr></thead><tbody>${wakuRows}</tbody></table></div></div>`}
+      </div>`;
+  }
+
+  // ---------- 展開比較 ----------
+  let lastCmp = null;
+  $('btnCompare').addEventListener('click', async () => {
+    if (busy) return; setBusy(true); showTab('cmp');
+    const biases = ['front', 'flat', 'outer'];
+    const out = {};
+    for (let b = 0; b < 3; b++) {
+      $('p-cmp').innerHTML = `<div class="empty">${E.BIAS[biases[b]].label}を${S.n}回走らせています…</div>`;
+      out[biases[b]] = await runBatch(cfgOf({ bias: biases[b] }), S.n, p => { $('prog').style.width = ((b + p) / 3 * 100).toFixed(1) + '%'; });
+      if (out[biases[b]].cancelled) { $('p-cmp').innerHTML = '<div class="empty">比較を中止しました。</div>'; setBusy(false); return; }
+    }
+    lastCmp = { res: out, cond: `${E.GROUND[S.ground].label}・${E.TURF[S.turf].label}・${E.PACE[S.pace].label}`, n: S.n };
+    renderCmp(); setBusy(false);
+    addLog({ kind: 'cmp', cond: `比較 ${lastCmp.cond}・各${S.n}回`, top: biases.map(b => { const r = out[b].rows.slice().sort((x, y) => y.w - x.w)[0]; const h = horseById(r.id); return { html: hChip(h), txt: `${E.BIAS[b].label} ${short(h.name)} ${pct(r.w / S.n)}%` }; }) });
+  });
+  function renderCmp() {
+    const el = $('p-cmp');
+    if (!lastCmp) { el.innerHTML = `<div class="empty">「内前・フラット・外差しを比較」を押すと、同じ馬場・ペースで3つの展開を${S.n}回ずつ走らせて並べます。</div>`; return; }
+    const B = ['front', 'flat', 'outer'], n = lastCmp.n;
+    const get = (b, id) => lastCmp.res[b].rows.find(r => r.id === id);
+    const ids = lastCmp.res.flat.rows.map(r => r.id).filter(id => horseById(id));
+    ids.sort((a, b) => B.reduce((s, k) => s + get(k, b).t3, 0) - B.reduce((s, k) => s + get(k, a).t3, 0));
+    const bestW = {}; B.forEach(b => { bestW[b] = Math.max(...lastCmp.res[b].rows.map(r => r.w)); });
+    const tops = B.map(b => { const r = lastCmp.res[b].rows.slice().sort((x, y) => y.w - x.w); return `<div class="sum-card"><span class="k">${E.BIAS[b].label}の上位</span><span class="v">${r.slice(0, 3).map(x => hChip(horseById(x.id))).join('')}<span class="pct">${pct(r[0].w / n)}%</span></span></div>`; }).join('');
+    const body = ids.map(id => {
+      const h = horseById(id);
+      const cells = B.map(b => { const r = get(b, id); return `<td><div class="cmp-cell"><span class="w ${r.w === bestW[b] ? 'best' : ''}">${pct(r.w / n)}</span><span class="p">複 ${pct(r.t3 / n)}</span></div></td>`; }).join('');
+      const t3s = B.map(b => get(b, id).t3);
+      return `<tr><td><div class="horse">${hChip(h)}<span><span class="nm">${esc(h.name)}</span><br><span class="tags">${h.strat}</span></span></div></td>${cells}<td class="n dim">${((Math.max(...t3s) - Math.min(...t3s)) / n * 100).toFixed(0)}</td></tr>`;
+    }).join('');
+    el.innerHTML = `<div class="hint">${lastCmp.cond}・各${n}回。上が勝率%、下が複勝率%。「振れ幅」は3展開での複勝率の差で、大きい馬ほど展開次第です。</div>
+      <div class="summary">${tops}</div>
+      <div class="scroll"><table><thead><tr><th>馬</th><th>内・前有利</th><th>フラット</th><th>外差し</th><th>振れ幅</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  }
+
+  // ---------- 各馬 ----------
+  const rngHtml = (id, label, val, min, max, step, fmt) => `<div class="rng"><label for="${id}"><span>${label}</span><output id="${id}-o">${fmt(val)}</output></label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"></div>`;
+  const xf = v => '×' + Number(v).toFixed(1);
+  function gradeSel(k, val, label) {
+    return `<select data-k="${k}" aria-label="${label}">${['S', 'A', 'B', 'C'].map(g => `<option ${val === g ? 'selected' : ''}>${g}</option>`).join('')}</select>`;
+  }
+  function stratSel(k, val, withNone) {
+    return `<select data-k="${k}" aria-label="${k === 'strat' ? '作戦' : '別作戦'}">${withNone ? `<option value="" ${!val ? 'selected' : ''}>なし</option>` : ''}${E.STRATS.map(s => `<option ${val === s ? 'selected' : ''}>${s}</option>`).join('')}</select>`;
+  }
+  function renderEdit() {
+    const el = $('p-edit');
+    const w = S.weights;
+    const jOpts = (cur) => Object.keys(S.jockeys).map(k => `<option ${k === cur ? 'selected' : ''}>${esc(k)}</option>`).join('');
+    // 馬番順（馬番がない馬・出走しない馬は後ろ）
+    const byGate = S.horses.slice().sort((a, b) => (!!a.scratch - !!b.scratch) || ((a.gate || 99) - (b.gate || 99)) || (a.id - b.id));
+    const rows = byGate.map(h => `<tr class="${h.scratch ? 'off' : ''}" data-id="${h.id}">
+      <td><div class="horse"><input type="checkbox" data-k="run" ${h.scratch ? '' : 'checked'} aria-label="${esc(h.name)}を出走させる">${hChip(h)}<span><span class="nm">${esc(h.name)}</span> <span class="tags">${h.sa}・${esc(h.sire)}</span><span class="note">${esc(h.note)}</span></span></div></td>
+      <td><select data-k="jockey" aria-label="騎手">${jOpts(h.jockey)}</select></td>
+      <td><input type="number" data-k="rides" min="0" max="5" step="1" value="${h.rides}" aria-label="乗り慣れ"></td>
+      <td><input type="number" data-k="abil" min="40" max="100" step="0.1" value="${h.abil}" aria-label="実績の能力"></td>
+      <td><input type="number" data-k="form" min="-20" max="10" step="1" value="${h.form || 0}" aria-label="近況"></td>
+      <td><input type="number" data-k="kick" min="40" max="100" value="${h.kick}" aria-label="瞬発力"></td>
+      <td><input type="number" data-k="stamina" min="40" max="100" value="${h.stamina}" aria-label="持続力"></td>
+      <td><input type="number" data-k="kyoto" min="40" max="100" value="${h.kyoto}" aria-label="京都適性"></td>
+      <td><input type="number" data-k="dist" min="40" max="100" value="${h.dist}" aria-label="2200mの距離適性"></td>
+      <td><input type="number" data-k="heavy" min="40" max="100" value="${h.heavy}" aria-label="道悪適性"></td>
+      <td><input type="number" data-k="bg" min="0" max="1" step="0.5" value="${h.bg || 0}" aria-label="晴れ血統（ディープ・シーザリオ）"></td>
+      <td><input type="number" data-k="bw" min="0" max="1" step="0.5" value="${h.bw || 0}" aria-label="雨血統（ステイゴールド・キンカメ）"></td>
+      <td><input type="number" data-k="tempP" min="0" max="60" step="1" value="${Math.round((h.tempP || 0) * 100)}" aria-label="気性（イレ込んで力を出せない確率％）"></td>
+      <td>${stratSel('strat', h.strat)}</td>
+      <td>${stratSel('alt', h.alt, true)}</td>
+      <td><input class="pct" type="number" data-k="altP" min="0" max="100" step="5" value="${Math.round((h.altP || 0) * 100)}" aria-label="別作戦の確率"></td>
+      <td><input class="pct" type="number" data-k="gateTol" min="0" max="100" step="10" value="${Math.round((h.gateTol || 0) * 100)}" aria-label="外枠耐性"></td>
+      <td><input type="number" data-k="l3" min="32" max="38" step="0.1" value="${h.l3 || ''}" placeholder="—" aria-label="得意なレースの上がり3F（秒）"></td>
+      <td>${gradeSel('cond', h.cond, '追い切り')}</td><td>${gradeSel('tb', h.tb, 'TB評価')}</td><td>${gradeSel('blood', h.blood, '血統診断')}</td><td>${gradeSel('blood2', h.blood2, '血統評価')}</td>
+      <td><input type="number" data-k="kg" min="50" max="60" step="0.5" value="${h.kg}" aria-label="斤量"></td>
+      <td><input type="number" data-k="odds" min="1" max="999" step="0.1" value="${h.odds || ''}" placeholder="—" aria-label="単勝オッズ"></td>
+    </tr>`).join('');
+    el.innerHTML = `
+      <div class="weights">
+        ${rngHtml('wKyoto', '京都・右回り適性の重み', w.kyoto, 0, 2, 0.1, xf)}
+        ${rngHtml('wDist', '2200mの距離適性の重み', w.dist, 0, 2, 0.1, xf)}
+        ${rngHtml('wJockey', '騎手の影響（腕・京都・中長距離・噛み合い）', w.jockey, 0, 2, 0.1, xf)}
+        ${rngHtml('wCond', '1週前追い切り（調子）の重み', w.cond, 0, 2, 0.1, xf)}
+        ${rngHtml('wTb', 'TB評価（近走の質・能力）の重み', w.tb, 0, 2, 0.1, xf)}
+        ${rngHtml('wBlood', '血統診断の重み', w.blood, 0, 2, 0.1, xf)}
+        ${rngHtml('wBlood2', '血統評価（2つ目）の重み', w.blood2, 0, 2, 0.1, xf)}
+        ${rngHtml('wTemper', '気性（イレ込み）の起こりやすさ', w.temper ?? 1, 0, 2, 0.1, xf)}
+        ${rngHtml('wBloodG', '馬場×血統の重み（良＝ディープ・シーザリオ／雨＝ステイゴールド・キンカメ）', w.bloodG ?? 1, 0, 2, 0.1, xf)}
+        ${rngHtml('wKisaku', '奇策の起こりやすさ', w.kisaku, 0, 3, 0.1, xf)}
+        ${rngHtml('wNoise', '波乱度（当日の出来の振れ幅）', S.noise, 0.1, 0.5, 0.01, v => Number(v).toFixed(2))}
+        ${rngHtml('wTrouble', '不利が起きる確率（1頭あたり）', S.trouble, 0, 0.12, 0.01, v => Math.round(v * 100) + '%')}
+      </div>
+      <div class="hint">「能力」は実績（全盛期）の総合力、「近況」は今の出来で、能力に足されます（−20〜+10。昔は強かったが今は走れていない馬はマイナス、上り調子の馬はプラス）。瞬発・持続・京都・距離・道悪は40〜100。「京都」は京都・右回りの得手不得手、「距離」は2200mへの適性です。追切・TB・血統はS/A/B/Cの評価で、能力に上乗せされます（重み×1のとき、能力値に換算してSは 追切+1.2・TB+4・血統+2・血統2 +2、Aはその半分、Cはその半分のマイナス。Bは影響なし）。「気性%」はイレ込んで力を出せない確率で、起きると道中で体力を2割余計に使い、能力値も約4下がります（そのレースはほぼ馬券外）。「晴血統」はディープ（ウインドインハーヘア）かシーザリオを持つ馬、「雨血統」はステイゴールドかキングカメハメハを持つ馬で1（遠い代なら0.5）。晴血統は良馬場で能力値+1.4、重〜不良では−0.8、雨血統は良で0、重で+1.4、不良で+2になります（上がりかかる馬場は少し雨寄り、上がり速い馬場は晴れ寄りに数えます）。「乗り慣れ」は近5走でその騎手が乗った回数（0は新コンビ）。別作戦は、その確率で基本作戦の代わりに選ばれます。「外枠耐性」は外枠の不利をどれだけ打ち消せるかで、100%なら枠の内外の影響がなくなります。「得意な上がり」はその馬が好走しやすいレースの上がり3F（秒）で、条件から想定される上がりに近いほど加点、離れるほど減点します（空欄なら影響なし）。オッズを入れると集計に期待値が出ます。変更は自動保存されます。</div>
+      <div class="scroll"><table class="edit"><thead><tr><th>馬</th><th>騎手</th><th>乗り慣れ</th><th>能力</th><th>近況</th><th>瞬発</th><th>持続</th><th>京都</th><th>距離</th><th>道悪</th><th>晴血統</th><th>雨血統</th><th>気性%</th><th>作戦</th><th>別作戦</th><th>確率%</th><th>外枠耐性%</th><th>得意な上がり</th><th>1週前追切</th><th>TB</th><th>血統</th><th>血統2</th><th>斤量</th><th>オッズ</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="actions"><button class="btn" type="button" id="btnReset">すべて初期値に戻す</button><span class="hint" id="resetMsg"></span></div>`;
+    const bindR = (id, set, fmt) => { const i = $(id); i.addEventListener('input', () => { set(Number(i.value)); $(id + '-o').textContent = fmt(i.value); save(); refreshRatings(); }); };
+    bindR('wKyoto', v => S.weights.kyoto = v, xf);
+    bindR('wDist', v => S.weights.dist = v, xf);
+    bindR('wJockey', v => S.weights.jockey = v, xf);
+    bindR('wKisaku', v => S.weights.kisaku = v, xf);
+    bindR('wCond', v => S.weights.cond = v, xf);
+    bindR('wTb', v => S.weights.tb = v, xf);
+    bindR('wBlood', v => S.weights.blood = v, xf);
+    bindR('wBlood2', v => S.weights.blood2 = v, xf);
+    bindR('wBloodG', v => S.weights.bloodG = v, xf);
+    bindR('wTemper', v => S.weights.temper = v, xf);
+    bindR('wNoise', v => S.noise = v, v => Number(v).toFixed(2));
+    bindR('wTrouble', v => S.trouble = v, v => Math.round(v * 100) + '%');
+    el.querySelector('tbody').addEventListener('change', (e) => {
+      const tr = e.target.closest('tr'); const h = horseById(Number(tr.dataset.id)); const k = e.target.dataset.k;
+      if (k === 'run') { h.scratch = !e.target.checked; tr.classList.toggle('off', !!h.scratch); renderGate(); }
+      else if (k === 'jockey' || k === 'strat') { h[k] = e.target.value; renderJock(); }
+      else if (k === 'alt') h.alt = e.target.value || null;
+      else if (k === 'cond' || k === 'tb' || k === 'blood' || k === 'blood2') h[k] = e.target.value;
+      else if (k === 'altP') h.altP = Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100;
+      else if (k === 'l3') { const v = Number(e.target.value); h.l3 = e.target.value && v >= 32 && v <= 38 ? v : null; }
+      else if (k === 'gateTol') h.gateTol = Math.max(0, Math.min(100, Number(e.target.value) || 0)) / 100;
+      else if (k === 'odds') h.odds = e.target.value ? Number(e.target.value) : null;
+      else if (k === 'rides') { h.rides = Math.max(0, Math.min(5, Math.round(Number(e.target.value) || 0))); renderJock(); }
+      else if (k === 'kg') { const v = Number(e.target.value); if (!isNaN(v)) h.kg = v; }
+      else if (k === 'tempP') { const v = Number(e.target.value); if (!isNaN(v)) h.tempP = Math.max(0, Math.min(60, v)) / 100; }
+      else if (k === 'bg' || k === 'bw') { const v = Number(e.target.value); if (!isNaN(v)) h[k] = Math.max(0, Math.min(1, v)); }
+      else if (k === 'form') { const v = Math.round(Number(e.target.value)); if (!isNaN(v)) h.form = Math.max(-20, Math.min(10, v)); }
+      else { const v = Number(e.target.value); if (!isNaN(v)) h[k] = Math.max(40, Math.min(100, v)); }
+      save(); refreshRatings();
+      if (!race) { drawFrame(); updateOrder(); }
+      if (lastStats && k === 'odds') renderStats();
+    });
+    $('btnReset').addEventListener('click', () => {
+      const btn = $('btnReset');
+      if (btn.dataset.armed !== '1') { btn.dataset.armed = '1'; btn.textContent = 'もう一度押すと、馬・騎手・枠順・条件をすべて初期値に戻します'; return; }
+      S = fresh(); save();
+      syncs.forEach(f => f()); syncPresets(); renderAllSettings(); updateHud(); drawFrame(); updateOrder();
+      $('resetMsg').textContent = '初期値に戻しました';
+    });
+  }
+
+  // 「今回」の総合値を、条件・評価・騎手の変更に合わせて更新する
+  function refreshRatings() {
+    document.querySelectorAll('[data-rate]').forEach(td => { const h = horseById(Number(td.dataset.rate)); if (h) td.textContent = E.ratingOf(h, cfgOf(), S.jockeys).toFixed(1); });
+  }
+
+  // ---------- 騎手 ----------
+  function renderJock() {
+    const el = $('p-jock');
+    const riders = {}; S.horses.forEach(h => { if (!h.scratch) (riders[h.jockey] = riders[h.jockey] || []).push(h); });
+    const names = Object.keys(S.jockeys).sort((a, b) => S.jockeys[b].skill - S.jockeys[a].skill);
+    const rows = names.map(k => {
+      const j = S.jockeys[k];
+      const hs = riders[k] || [];
+      const ride = hs.map(h => { const f = fitOf(h); return `<span class="horse">${hChip(h)}<span><span class="nm">${esc(h.name)}</span><br><span class="fit ${f.cls}">${f.label}</span></span></span>`; }).join('') || '<span class="hint">騎乗なし</span>';
+      return `<tr data-j="${esc(k)}" class="${hs.length ? '' : 'off'}">
+        <td class="l" style="min-width:240px"><span class="nm" style="font-weight:700">${esc(k)}</span><span class="note">${esc(j.memo || '')}</span></td>
+        <td class="l">${ride}</td>
+        <td><input type="number" data-k="skill" min="40" max="100" value="${j.skill}" aria-label="腕"></td>
+        <td><input type="number" data-k="big" min="40" max="100" value="${j.big ?? 65}" aria-label="勝負強さ"></td>
+        <td><input type="number" data-k="kyoto" min="40" max="100" value="${j.kyoto}" aria-label="京都"></td>
+        <td><input type="number" data-k="mid" min="40" max="100" value="${j.mid}" aria-label="中距離"></td>
+        <td><select data-k="type" aria-label="得意な乗り方">${Object.keys(E.JTYPES).map(t => `<option ${j.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+        <td><input class="pct" type="number" data-k="kisaku" min="0" max="50" step="1" value="${Math.round(j.kisaku * 100)}" aria-label="奇策率"></td>
+      </tr>`;
+    }).join('');
+    el.innerHTML = `<div class="hint">「腕」は今年（11/1終了時点）の勝率と複勝率から、「勝負強さ」は重賞の通算複勝率・今年のG1勝利・6〜8月の重賞成績・回収率（人気以上の着に持ってくるか）から付けています。腕は±25で能力値に約±2、勝負強さは±25で約±1.4の上乗せです。「京都」は京都芝での成績、「中長距離」は1800〜2400mの得意度（いずれも40〜100）。「得意」は乗り方の型で、馬の作戦と合うと加点、合わないと減点です。「奇策%」は大逃げ・追込・まくりに出る確率です。乗り替わりは「各馬」タブで変えられます。</div>
+      <div class="scroll"><table class="edit"><thead><tr><th>騎手</th><th>騎乗馬・噛み合い</th><th>腕</th><th>勝負強さ</th><th>京都</th><th>中長距離</th><th>得意</th><th>奇策%</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    el.querySelector('tbody').addEventListener('change', (e) => {
+      const tr = e.target.closest('tr'); const j = S.jockeys[tr.dataset.j]; const k = e.target.dataset.k;
+      if (k === 'type') j.type = e.target.value;
+      else if (k === 'kisaku') j.kisaku = Math.max(0, Math.min(50, Number(e.target.value) || 0)) / 100;
+      else { const v = Number(e.target.value); if (!isNaN(v)) j[k] = Math.max(40, Math.min(100, v)); }
+      save(); refreshRatings(); if (k === 'type') renderJock();
+    });
+  }
+
+  // ---------- 枠順 ----------
+  function renderGate() {
+    const el = $('p-gate');
+    const chk = gateCheck();
+    const items = runners().map(h => `<div class="gate-item" data-id="${h.id}"><span class="num w0">${h.id}</span><span class="nm">${esc(h.name)}</span><input type="number" min="1" max="18" step="1" inputmode="numeric" value="${h.gate || ''}" placeholder="馬番" aria-label="${esc(h.name)}の馬番"></div>`).join('');
+    el.innerHTML = `<div class="hint">11月13日（金）の朝に枠順が出たら、各馬の馬番を入れてください。全頭そろうと、確定した馬番・枠で走ります。未確定のあいだは毎回ランダムです。</div>
+      <div class="field"><span>枠順の扱い</span><div class="seg" id="segGate" role="group" aria-label="枠順の扱い"><button type="button" data-v="random" aria-pressed="${S.gateMode === 'random'}">未確定（毎回ランダム）</button><button type="button" data-v="fixed" aria-pressed="${S.gateMode === 'fixed'}">確定した馬番を使う</button></div></div>
+      <div class="gate-grid">${items}</div>
+      <div class="actions"><span class="msg ${chk.ok ? 'ok' : 'err'}" id="gateMsg">${chk.msg}</span><button class="btn" type="button" id="btnGateClear">馬番をすべて消す</button></div>`;
+    $('segGate').addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      S.gateMode = b.dataset.v; save(); renderGate(); afterGateChange();
+    });
+    el.querySelector('.gate-grid').addEventListener('change', (e) => {
+      const it = e.target.closest('.gate-item'); const h = horseById(Number(it.dataset.id));
+      const v = Math.round(Number(e.target.value));
+      h.gate = v >= 1 && v <= 18 ? v : null;
+      if (gateCheck().ok && S.gateMode === 'random') S.gateMode = 'fixed';
+      save(); const c = gateCheck(); const m = $('gateMsg'); m.textContent = c.msg; m.className = 'msg ' + (c.ok ? 'ok' : 'err');
+      el.querySelectorAll('#segGate button').forEach(b => b.setAttribute('aria-pressed', String(S.gateMode === b.dataset.v)));
+      afterGateChange();
+    });
+    $('btnGateClear').addEventListener('click', () => { S.horses.forEach(h => { h.gate = null; }); S.gateMode = 'random'; save(); renderGate(); afterGateChange(); });
+  }
+  function afterGateChange() {
+    syncGateState();
+    if (!race) { drawFrame(); updateOrder(); }
+    renderEdit(); renderJock();
+    if (lastStats) renderStats();
+  }
+  function renderAllSettings() { renderEdit(); renderJock(); renderGate(); }
+
+  // ---------- ログ ----------
+  const LOG = [];
+  function addLog(item) {
+    item.at = new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    LOG.unshift(item); if (LOG.length > 20) LOG.pop();
+    renderLog();
+  }
+  function renderLog() {
+    const el = $('p-log');
+    if (!LOG.length) { el.innerHTML = '<div class="empty">再生や一括シミュレーションの結果がここに積み上がります。条件や騎手を変えて回した結果を見比べるのに使ってください。</div>'; return; }
+    const kind = { one: '1レース', batch: '一括', cmp: '比較' };
+    el.innerHTML = `<div class="log">${LOG.map(l => `<div class="log-item"><div class="meta">${l.at}・${kind[l.kind]}・${esc(l.cond)}</div><div class="top">${l.top.map(t => `<span>${t.html}<em>${esc(t.txt)}</em></span>`).join('')}</div></div>`).join('')}</div>`;
+  }
+
+  // ---------- 起動 ----------
+  function relayout() { layout(); drawFrame(); }
+  window.addEventListener('resize', () => { clearTimeout(relayout.t); relayout.t = setTimeout(relayout, 120); });
+  const mq = window.matchMedia('(prefers-color-scheme: dark)');
+  if (mq.addEventListener) mq.addEventListener('change', relayout);
+  new MutationObserver(relayout).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(relayout);
+
+  layout(); drawFrame(); updateHud(); updateOrder();
+  renderStats(); renderCmp(); renderAllSettings(); renderLog();
+  $('p-last').innerHTML = '<div class="empty">「▶ 1レース再生」を押すと、走ったレースの着順・着差・騎手・選んだ作戦がここに出ます。</div>';
+  // 最初の画面から集計が見えるように、現在の条件で一度回しておく（タブは切り替えない）
+  setTimeout(() => { quiet = true; $('btnBatch').click(); }, 300);
+})();
+
+</script>
+
+</body>
+</html>
